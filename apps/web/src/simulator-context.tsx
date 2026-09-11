@@ -4,6 +4,7 @@ import {
   appendNarrative,
   applyIntervention,
   approveOffseason,
+  advanceSeasonPhase,
   createUniverse,
   exportUniverse,
   fastForwardSeason,
@@ -21,6 +22,7 @@ import {
   voidLastWeekend,
   advanceLaps,
   applyWorkshopEdits,
+  editOffseasonRating,
   type DriverRatings,
   type Driver,
   type InterventionKind,
@@ -79,6 +81,8 @@ interface SimulatorContextValue {
   removeTeam(teamId: string): Promise<void>;
   createOffseason(): Promise<void>;
   acceptOffseason(): Promise<void>;
+  advancePhase(): Promise<void>;
+  editOffseasonRating(teamId: string, field: keyof TeamRatings, delta: number): Promise<void>;
   narrate(): Promise<void>;
   editNarrative(sourceId: string, text: string): Promise<void>;
   exportCurrent(): void;
@@ -304,6 +308,8 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     removeTeam: (teamId) => run((universe) => removeTeam(universe, teamId), "Team withdrawn; its drivers remain in the free-agent pool."),
     createOffseason: () => run(proposeOffseason, "Offseason package generated for review."),
     acceptOffseason: () => run(approveOffseason, "Offseason approved; the next season is ready."),
+    advancePhase: () => run(advanceSeasonPhase, "Season phase advanced."),
+    editOffseasonRating: (teamId, field, delta) => run((universe) => editOffseasonRating(universe, teamId, field, delta), "Offseason package updated."),
     narrate,
     editNarrative: (sourceId, text) => run((universe) => reviseNarrative(universe, sourceId, text), "Narrative revision stored without changing race facts."),
     exportCurrent, importBackup, refreshData,
