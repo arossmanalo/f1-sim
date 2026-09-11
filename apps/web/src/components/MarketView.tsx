@@ -42,11 +42,11 @@ export function MarketView() {
         <section className="data-section contract-ledger">
           <div className="section-heading"><div><span>Active agreements</span><h2>Contract ledger</h2></div><BriefcaseBusiness /></div>
           <div className="data-table">
-            <div className="data-row data-row--head"><span>Driver</span><span>Team</span><span>Role</span><span>Term</span><span>Salary</span></div>
+            <div className="data-row data-row--head"><span>Driver</span><span>Team</span><span>Role</span><span>Term</span><span>Status</span><span>Salary</span></div>
             {contracts.map((contract) => {
               const driver = season.drivers.find((item) => item.id === contract.driverId);
               const team = season.teams.find((item) => item.id === contract.teamId);
-              return <div className="data-row" key={contract.id}><strong>{driver?.code}</strong><span>{team?.shortName}</span><span>{contract.role}</span><span>{contract.startSeason}–{contract.endSeason}</span><span className="credit"><Coins /> {contract.salaryCredits.toLocaleString()}</span></div>;
+              return <div className="data-row" key={contract.id}><strong>{driver?.code}</strong><span>{team?.shortName}</span><span>{contract.role}</span><span>{contract.startSeason}–{contract.endSeason}</span><span className={`contract-status contract-status--${contract.status}`}>{contract.status}</span><span className="credit"><Coins /> {contract.salaryCredits.toLocaleString()}</span></div>;
             })}
           </div>
         </section>
