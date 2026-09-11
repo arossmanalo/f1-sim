@@ -7,10 +7,9 @@ if (-not (Test-Path -LiteralPath 'node_modules')) {
   pnpm install
 }
 
-if (-not (Test-Path -LiteralPath 'apps/web/dist')) {
-  Write-Host 'Building F1 SIM...'
-  pnpm build
-}
+Write-Host 'Building F1 SIM...'
+pnpm build
+if ($LASTEXITCODE -ne 0) { throw 'F1 SIM could not build. Review the build output above.' }
 
 $port = 4173
 if (Test-Path -LiteralPath '.env') {
