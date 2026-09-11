@@ -6,6 +6,39 @@ function uid(prefix: string): string {
   return `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 }
 
+/** Move the race director through the three user-facing season phases. */
+export function advanceSeasonPhase(input: Universe): Universe {
+  if (input.season.phase === "preseason") {
+    const universe = structuredClone(input);
+    universe.season.phase = "between-weekends";
+    universe.audit.push({ id: uid("audit"), action: "enter-season", summary: `Entered the ${universe.season.year} season.`, at: new Date().toISOString() });
+    universe.updatedAt = new Date().toISOString();
+    return universe;
+  }
+  if (input.season.phase === "season-complete") {
+    if (input.mode !== "dynasty") throw new Error("Standalone seasons do not have a next-season offseason package.");
+    return proposeOffseason(input);
+  }
+  if (input.season.phase === "offseason") return approveOffseason(input);
+  throw new Error("Advance the phase from preseason, season complete, or an editable offseason package.");
+}
+
+/** Change one generated offseason development delta before it is accepted. */
+export function editOffseasonRating(input: Universe, teamId: string, field: keyof TeamRatings, delta: number): Universe {
+  const universe = structuredClone(input);
+  const proposal = universe.season.offseasonProposal;
+  if (universe.season.phase !== "offseason" || !proposal || proposal.status !== "pending") {
+    throw new Error("Only a pending offseason package can be customized.");
+  }
+  if (!Number.isFinite(delta)) throw new Error("The offseason change must be a number.");
+  const change = proposal.ratingChanges.find((candidate) => candidate.teamId === teamId && candidate.field === field);
+  if (!change) throw new Error("That team has no proposed change for this field.");
+  change.delta = Math.max(-12, Math.min(12, Math.round(delta)));
+  universe.audit.push({ id: uid("audit"), action: "edit-offseason-package", summary: `${teamId}: ${field} offseason change set to ${change.delta}.`, at: new Date().toISOString() });
+  universe.updatedAt = new Date().toISOString();
+  return universe;
+}
+
 export function proposeOffseason(input: Universe): Universe {
   const universe = structuredClone(input);
   if (universe.mode !== "dynasty" || universe.season.phase !== "season-complete") {
