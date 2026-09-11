@@ -297,7 +297,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .transfer-line { display: grid; grid-template-columns: 1.4fr 1.4fr .7fr auto; gap: 10px; align-items: end; margin-top: 17px; }
 .transfer-line select { color: white; background: #182128; border-color: #59656f; }
 .market-layout { grid-template-columns: minmax(0, 1.35fr) minmax(310px, .65fr); }
-.contract-ledger .data-row { grid-template-columns: minmax(90px, 1fr) 70px 80px 110px 110px; min-width: 500px; }
+.contract-ledger .data-row { grid-template-columns: minmax(90px, 1fr) 70px 75px 100px 90px 110px; min-width: 610px; }.contract-status { font: 700 9px var(--display); text-transform: capitalize; }.contract-status--active, .contract-status--agreed { color: #21694f; }.contract-status--expired, .contract-status--terminated { color: var(--red); }
 .credit { display: flex; align-items: center; gap: 5px; }.credit svg { width: 13px; }
 .offseason-desk { position: sticky; top: 88px; }
 .offseason-desk ul { padding-left: 18px; color: #657078; font-size: 11px; line-height: 1.7; }
