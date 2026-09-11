@@ -6,12 +6,12 @@ type RecordScope = "all" | "simulation" | "reality";
 type RecordRow = { name: string; team?: string; value: number; source: "simulation" | "reality" };
 
 const realityRows: RecordRow[] = [
-  { name: "Lewis Hamilton", value: 7, source: "reality" },
-  { name: "Michael Schumacher", value: 7, source: "reality" },
-  { name: "Ferrari", value: 16, source: "reality" },
-  { name: "Lewis Hamilton", value: 105, source: "reality" },
-  { name: "Lewis Hamilton", value: 104, source: "reality" },
-  { name: "Lewis Hamilton", value: 202, source: "reality" },
+  { name: "Lewis Hamilton", team: "World Drivers' Championships", value: 7, source: "reality" },
+  { name: "Michael Schumacher", team: "World Drivers' Championships", value: 7, source: "reality" },
+  { name: "Ferrari", team: "World Constructors' Championships", value: 16, source: "reality" },
+  { name: "Lewis Hamilton", team: "Race wins", value: 105, source: "reality" },
+  { name: "Lewis Hamilton", team: "Pole positions", value: 104, source: "reality" },
+  { name: "Lewis Hamilton", team: "Podium finishes", value: 202, source: "reality" },
 ];
 
 function simulationRows(universes: ReturnType<typeof useSimulator>["universes"]): RecordRow[] {
