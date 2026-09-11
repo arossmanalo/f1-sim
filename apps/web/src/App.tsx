@@ -71,7 +71,7 @@ export function App() {
         </nav>
         <div className="sidebar-status">
           <span className={`status-lamp ${health?.narration.available ? "status-lamp--ready" : "status-lamp--off"}`} />
-          <div><strong>{health?.narration.available ? "Gemini ready" : "Narration offline"}</strong><small>{health?.narration.available ? health.narration.model : "Simulation unaffected"}</small></div>
+          <div><strong>{health?.narration.available ? "Gemini ready" : "Narration offline"}</strong><small>{health?.narration.available ? `${health.narration.model}${health.narration.fallbackModel ? ` · fallback ${health.narration.fallbackModel}` : ""}` : "Simulation unaffected"}</small></div>
         </div>
         <button className="new-universe" onClick={() => setNewOpen(true)}>New universe</button>
       </aside>

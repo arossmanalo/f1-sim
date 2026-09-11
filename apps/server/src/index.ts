@@ -10,6 +10,7 @@ import { z } from "zod";
 const app = express();
 const port = Number(process.env.PORT ?? 4173);
 const model = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
+const fallbackModel = process.env.GEMINI_FALLBACK_MODEL?.trim() || "gemini-3.5-flash-lite";
 const apiKey = process.env.GEMINI_API_KEY?.trim();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : undefined;
 
@@ -20,7 +21,7 @@ app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
     service: "f1-sim-local",
-    narration: { available: Boolean(ai), provider: "gemini", model },
+    narration: { available: Boolean(ai), provider: "gemini", model, fallbackModel },
     currentData: { available: true, provider: "jolpica" },
     time: new Date().toISOString(),
   });
@@ -70,10 +71,20 @@ app.post("/api/narration", async (request, response) => {
   ].filter(Boolean).join("\n");
 
   try {
-    const generated = await ai.models.generateContent({ model, contents: prompt });
+    let generated;
+    let usedModel = model;
+    try {
+      generated = await ai.models.generateContent({ model, contents: prompt });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const transient = /503|504|UNAVAILABLE|DEADLINE_EXCEEDED|high demand|deadline expired/i.test(message);
+      if (!transient || fallbackModel === model) throw error;
+      generated = await ai.models.generateContent({ model: fallbackModel, contents: prompt });
+      usedModel = fallbackModel;
+    }
     const text = generated.text?.trim();
     if (!text) throw new Error("Gemini returned no text.");
-    return response.json({ text, provider: "gemini", model, promptVersion: "narrative-v2" });
+    return response.json({ text, provider: "gemini", model: usedModel, promptVersion: "narrative-v2" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Gemini error";
     return response.status(502).json({ error: message, retryable: true });

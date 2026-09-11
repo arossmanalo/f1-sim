@@ -2,7 +2,7 @@ import type { NarrativeRequest } from "@f1-sim/core";
 
 export interface ServiceHealth {
   ok: boolean;
-  narration: { available: boolean; provider: "gemini"; model: string };
+  narration: { available: boolean; provider: "gemini"; model: string; fallbackModel?: string };
   currentData: { available: boolean; provider: "jolpica" };
   time: string;
 }
