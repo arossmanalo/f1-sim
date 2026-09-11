@@ -8,7 +8,7 @@ A local-first Formula 1 season and dynasty simulator rebuilt for the browser.
 2. Run `pnpm install`.
 3. Copy `.env.example` to `.env` and add `GEMINI_API_KEY` if AI narrative is wanted.
 4. During development, run `pnpm dev` and open `http://localhost:5173`.
-5. For the production-style local app, run `pnpm build`, then double-click `start-f1-sim.cmd` (or run `./start-f1-sim.ps1`).
+5. For the production-style local app, run `pnpm build`, then double-click `start-f1-sim.cmd` (or run `./start-f1-sim.ps1`). To stop it later, double-click `stop-f1-sim.cmd`.
 
 The simulator works without Gemini. When the provider is unavailable, canonical race events continue and narrative requests remain visibly queued.
 
