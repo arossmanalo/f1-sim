@@ -5,7 +5,7 @@ import { useSimulator } from "../simulator-context";
 import { displayName, formatGap } from "../format";
 
 export function LiveView() {
-  const { current, beginWeekend, advance, finish, finalize, intervene } = useSimulator();
+  const { current, beginWeekend, advance, finish, finalize, intervene, confirm } = useSimulator();
   const [showEveryLap, setShowEveryLap] = useState(false);
   const [driverId, setDriverId] = useState<string>();
   const [weather, setWeather] = useState<Weather>("rain");
@@ -25,7 +25,7 @@ export function LiveView() {
   const confirmIntervention = (kind: InterventionKind, value: string | number | undefined, note: string, needsDriver = true) => {
     const driver = current.season.drivers.find((item) => item.id === selectedDriverId);
     const target = needsDriver ? displayName(driver) : "the session";
-    if (window.confirm(`Commit this change to ${target}?\n\n${note}\n\nThere is no live-session undo.`)) void intervene(kind, needsDriver ? selectedDriverId : undefined, value, note);
+    void confirm({ title: `Commit this change to ${target}?`, message: `${note} There is no live-session undo.`, confirmLabel: "Commit intervention", danger: true }).then((approved) => { if (approved) void intervene(kind, needsDriver ? selectedDriverId : undefined, value, note); });
   };
 
   return (
