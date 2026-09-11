@@ -258,6 +258,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .garage-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, 1fr) auto auto; align-items: end; gap: 12px; padding: 16px 20px; color: white; background: var(--graphite); }
 .garage-toolbar select { color: white; background: #1a232a; border-color: #59656f; }
 .garage-toolbar button { min-height: 43px; display: flex; align-items: center; gap: 6px; padding: 0 13px; color: white; background: transparent; border: 1px solid #5b6670; cursor: pointer; font: 650 11px var(--display); }
+.team-form { display: flex; align-items: end; gap: 10px; padding: 14px 20px; background: #e8eaec; border: 1px solid var(--line); }.team-form label { display: flex; flex: 1; flex-direction: column; gap: 6px; color: #59646d; font: 650 11px var(--display); }.team-form input { min-height: 40px; padding: 0 10px; background: white; border: 1px solid #bec5ca; }
 .workshop-savebar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 20px; background: #e8eaec; border: 1px solid var(--line); }
 .workshop-savebar > div:first-child { display: flex; flex-direction: column; gap: 4px; }
 .workshop-savebar strong { font: 750 13px var(--display); }
