@@ -122,7 +122,9 @@ export function buildNarrativeStoryContext(universe: Universe): NarrativeStoryCo
 
   return {
     seasonArc,
-    rivalries,
+    // Keep the payload inside the server contract even when a full grid
+    // produces many close teammate and on-track pairings.
+    rivalries: rivalries.slice(0, 8),
     teamDramas,
     driverTrajectories,
     teamTrajectories,
