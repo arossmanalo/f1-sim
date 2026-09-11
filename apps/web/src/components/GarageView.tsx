@@ -23,7 +23,7 @@ type DriverForm = { givenName: string; familyName: string; code: string; number:
 const emptyDriverForm: DriverForm = { givenName: "", familyName: "", code: "", number: "", nationality: "", age: "21", potential: "78" };
 
 export function GarageView() {
-  const { current, addTeam, addDriver, removeTeam, applyWorkshopEdits } = useSimulator();
+  const { current, addTeam, addDriver, removeTeam, applyWorkshopEdits, confirm } = useSimulator();
   const [driverDraft, setDriverDraft] = useState<Record<string, DriverWorkshopValues>>({});
   const [teamDraft, setTeamDraft] = useState<Record<string, Partial<TeamRatings>>>({});
   const [driverFormOpen, setDriverFormOpen] = useState(false);
@@ -55,7 +55,7 @@ export function GarageView() {
         <label>Constructor<select value={team.id} onChange={(event) => { setTeamId(event.target.value); const selected = current.season.teams.find((item) => item.id === event.target.value); setDriverId(selected?.driverIds[0]); }}>{current.season.teams.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
         <div className="team-identity"><i style={{ background: team.color }} /><strong>{team.name}</strong><span>{team.shortName}</span></div>
         <button disabled={!['preseason', 'offseason'].includes(current.season.phase)} onClick={() => { const name = window.prompt("New constructor name"); if (name?.trim()) void addTeam(name.trim()); }}><Plus /> Add team</button>
-        <button className="danger-text" disabled={!['preseason', 'offseason'].includes(current.season.phase)} onClick={() => { if (window.confirm(`Withdraw ${team.name}? Its drivers will remain free agents.`)) void removeTeam(team.id); }}><Trash2 /> Withdraw</button>
+        <button className="danger-text" disabled={!['preseason', 'offseason'].includes(current.season.phase)} onClick={() => void confirm({ title: `Withdraw ${team.name}?`, message: "Its drivers will return to the free-agent pool and the constructor will leave this universe.", confirmLabel: "Withdraw team", danger: true }).then((approved) => { if (approved) void removeTeam(team.id); })}><Trash2 /> Withdraw</button>
       </div>
 
       <section className={`workshop-savebar ${pendingCount > 0 ? "workshop-savebar--pending" : ""}`} aria-live="polite">
