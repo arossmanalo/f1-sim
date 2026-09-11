@@ -9,8 +9,12 @@ export interface ServiceHealth {
 
 async function jsonRequest<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
-  const body = await response.json().catch(() => ({})) as { error?: string };
-  if (!response.ok) throw new Error(body.error ?? `${response.status} ${response.statusText}`);
+  const body = await response.json().catch(() => ({})) as { error?: string; details?: { fieldErrors?: Record<string, string[]>; formErrors?: string[] } };
+  if (!response.ok) {
+    const fields = body.details?.fieldErrors ? Object.entries(body.details.fieldErrors).flatMap(([field, errors]) => errors.map((error) => `${field}: ${error}`)) : [];
+    const detail = [...fields, ...(body.details?.formErrors ?? [])].slice(0, 3).join("; ");
+    throw new Error([body.error ?? `${response.status} ${response.statusText}`, detail].filter(Boolean).join(" "));
+  }
   return body as T;
 }
 

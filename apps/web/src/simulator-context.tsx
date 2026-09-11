@@ -167,13 +167,15 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     const boundedFacts = [...(major.length ? major.map((entry) => entry.message) : ["No competitive session has been completed yet."]), ...storyFacts]
       .map((fact) => fact.length > 400 ? `${fact.slice(0, 397)}...` : fact)
       .slice(0, 40);
+    const activeDriverIds = new Set(current.season.teams.flatMap((team) => team.driverIds));
+    const narrationDrivers = [...current.season.drivers.filter((driver) => activeDriverIds.has(driver.id)), ...current.season.drivers.filter((driver) => !activeDriverIds.has(driver.id))].slice(0, 50);
     const request: NarrativeRequest = {
       scope: active ? "session" : completed ? "weekend" : "paddock",
       scopeId,
       season: current.season.year,
       title,
       facts: boundedFacts,
-      characters: current.season.drivers.map((driver) => {
+      characters: narrationDrivers.map((driver) => {
         const team = current.season.teams.find((candidate) => candidate.driverIds.includes(driver.id));
         return { id: driver.id, name: `${driver.givenName} ${driver.familyName}`, team: team?.name };
       }),
