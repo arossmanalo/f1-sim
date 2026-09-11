@@ -1,0 +1,27 @@
+{
+  "name": "@f1-sim/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@f1-sim/core": "workspace:*",
+    "dexie": "^4.2.0",
+    "lucide-react": "^0.545.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "workbox-window": "^7.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^7.1.0",
+    "vite-plugin-pwa": "^1.0.0"
+  }
+}

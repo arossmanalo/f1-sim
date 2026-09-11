@@ -1,0 +1,27 @@
+import { useState } from "react";
+import { Bot, Check, CloudOff, Edit3, RefreshCw, Sparkles } from "lucide-react";
+import type { NarrativeVersion } from "@f1-sim/core";
+import { useSimulator } from "../simulator-context";
+
+function Story({ narrative, onSave }: { narrative: NarrativeVersion; onSave(id: string, text: string): Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(narrative.text);
+  return <article className={`narrative-card narrative-card--${narrative.status}`}>
+    <header><span>{narrative.scope}</span><small>{new Date(narrative.createdAt).toLocaleString()}</small><em>{narrative.provider} · {narrative.model}</em></header>
+    {editing ? <textarea value={text} onChange={(event) => setText(event.target.value)} rows={8} /> : <div className="prose">{narrative.text.split("\n").filter(Boolean).map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div>}
+    <footer>{narrative.status === "queued" ? <span><CloudOff /> Queued for retry</span> : <span><Check /> Stored version</span>}<button onClick={() => { if (editing) void onSave(narrative.id, text).then(() => setEditing(false)); else setEditing(true); }}>{editing ? <><Check /> Save revision</> : <><Edit3 /> Edit copy</>}</button></footer>
+  </article>;
+}
+
+export function PaddockView() {
+  const { current, narrate, editNarrative, health } = useSimulator();
+  if (!current) return null;
+  return <div className="page-stack paddock-page">
+    <header className="page-heading paddock-heading"><span>Paddock wire</span><h1>The season beyond the stopwatch</h1><p>Gemini turns verified events into drama. Generated words are archived; race facts stay untouchable.</p><button className="button button--signal" onClick={() => void narrate()}><Sparkles /> File a new report</button></header>
+    <div className={`provider-banner ${health?.narration.available ? "provider-banner--ready" : "provider-banner--off"}`}><Bot /><span><strong>{health?.narration.available ? "Gemini newsroom connected" : "AI narration unavailable"}</strong><small>{health?.narration.available ? `Using ${health.narration.model}; major moments are batched to preserve quota.` : "Simulation continues. Factual summaries remain visible and prose is queued."}</small></span><RefreshCw /></div>
+    <section className="narrative-feed">
+      {current.narratives.slice().reverse().map((narrative) => <Story narrative={narrative} key={narrative.id} onSave={editNarrative} />)}
+      {current.narratives.length === 0 && <div className="empty-state"><div className="empty-glyph"><Bot /></div><h2>No reports filed yet</h2><p>Run a race or begin the season, then ask the newsroom to turn its major moments into a stored narrative.</p></div>}
+    </section>
+  </div>;
+}

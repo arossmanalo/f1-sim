@@ -1,0 +1,21 @@
+{
+  "name": "f1-sim",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @f1-sim/server --filter @f1-sim/web dev",
+    "dev:web": "pnpm --filter @f1-sim/web dev",
+    "dev:server": "pnpm --filter @f1-sim/server dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "data:fetch": "pnpm --filter @f1-sim/data-tools fetch-season",
+    "start": "pnpm --filter @f1-sim/server start"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
