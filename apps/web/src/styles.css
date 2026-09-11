@@ -303,6 +303,12 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .provider-banner > span { display: flex; flex-direction: column; gap: 3px; }.provider-banner > svg:last-child { margin-left: auto; }
 .provider-banner strong { font-size: 12px; }.provider-banner small { font-size: 10px; }
 .provider-banner--ready { color: #225f4b; background: #e1f0e9; border-color: #b5d7c9; }.provider-banner--off { color: #7f3530; background: #f6e3e0; border-color: #dfb7b3; }
+.narration-progress { display: flex; align-items: center; gap: 12px; padding: 13px 18px; color: #263c4a; background: #e8eef2; border: 1px solid #b9cbd5; }
+.narration-progress > span:last-child { display: flex; flex-direction: column; gap: 3px; }.narration-progress strong { font-size: 12px; }.narration-progress small { color: #5f707b; font-size: 10px; }
+.narration-progress__lamp { flex: 0 0 auto; width: 10px; height: 10px; border: 2px solid #3d667a; border-top-color: transparent; border-radius: 50%; }
+.narration-spin { animation: narration-spin 1s linear infinite; }.button .narration-spin { transform-origin: center; }
+@keyframes narration-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .narration-spin { animation: none; } }
 .narrative-feed { display: grid; gap: 18px; max-width: 900px; margin: 0 auto; }
 .narrative-card { background: var(--paper-bright); border: 1px solid var(--line); border-left: 4px solid var(--blue); }
 .narrative-card--queued { border-left-color: var(--red); }

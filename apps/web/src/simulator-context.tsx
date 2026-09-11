@@ -56,6 +56,7 @@ interface SimulatorContextValue {
   current?: Universe;
   view: AppView;
   health?: ServiceHealth;
+  narrationStatus: "idle" | "preparing" | "generating";
   notice?: { tone: "info" | "success" | "error"; text: string };
   presets: SeasonPreset[];
   setView(view: AppView): void;
@@ -93,6 +94,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
   const [view, setView] = useState<AppView>("command");
   const [loading, setLoading] = useState(true);
   const [health, setHealth] = useState<ServiceHealth>();
+  const [narrationStatus, setNarrationStatus] = useState<"idle" | "preparing" | "generating">("idle");
   const [notice, setNotice] = useState<SimulatorContextValue["notice"]>();
   const current = universes.find((universe) => universe.id === currentId);
 
@@ -150,56 +152,62 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
   }, [current, universes]);
 
   const narrate = useCallback(async () => {
-    if (!current) return;
-    const active = current.season.currentWeekend;
-    const completed = current.season.completedWeekends.filter((weekend) => !weekend.voided).at(-1);
-    const sourceEvents = active?.race.events ?? completed?.events ?? [];
-    const major = sourceEvents.filter((event) => event.severity !== "routine").slice(-12);
-    const scopeId = active?.race.id ?? completed?.weekend.id ?? current.id;
-    const title = active?.weekend.name ?? completed?.weekend.name ?? `${current.season.year} paddock`;
-    const storyContext = buildNarrativeStoryContext(current);
-    const storyFacts = [
-      ...storyContext.seasonArc,
-      ...storyContext.rivalries.map((rivalry) => `${rivalry.title}: ${rivalry.summary}`),
-      ...storyContext.teamDramas.slice(0, 4).map((drama) => `${drama.team}: ${drama.summary}`),
-      ...storyContext.upgrades.slice(-4).map((upgrade) => `Round ${upgrade.round} upgrade: ${upgrade.summary}`),
-    ];
-    const boundedFacts = [...(major.length ? major.map((entry) => entry.message) : ["No competitive session has been completed yet."]), ...storyFacts]
-      .map((fact) => fact.length > 400 ? `${fact.slice(0, 397)}...` : fact)
-      .slice(0, 40);
-    const activeDriverIds = new Set(current.season.teams.flatMap((team) => team.driverIds));
-    const narrationDrivers = [...current.season.drivers.filter((driver) => activeDriverIds.has(driver.id)), ...current.season.drivers.filter((driver) => !activeDriverIds.has(driver.id))].slice(0, 50);
-    const request: NarrativeRequest = {
-      scope: active ? "session" : completed ? "weekend" : "paddock",
-      scopeId,
-      season: current.season.year,
-      title,
-      facts: boundedFacts,
-      characters: narrationDrivers.map((driver) => {
-        const team = current.season.teams.find((candidate) => candidate.driverIds.includes(driver.id));
-        return { id: driver.id, name: `${driver.givenName} ${driver.familyName}`, team: team?.name };
-      }),
-      tone: active ? "live" : completed ? "recap" : "paddock",
-      previousContext: current.narratives.filter((item) => item.status === "complete").at(-1)?.text.slice(-2500),
-      storyContext,
-    };
+    if (!current || narrationStatus !== "idle") return;
+    setNarrationStatus("preparing");
     try {
-      const generated = await generateNarrative(request);
-      await commit(appendNarrative(current, { ...generated, scope: request.scope, scopeId, status: "complete" }), "Gemini filed a new paddock story.");
-    } catch (error) {
-      const failed: Omit<NarrativeVersion, "id" | "createdAt"> = {
-        scope: request.scope,
+      const active = current.season.currentWeekend;
+      const completed = current.season.completedWeekends.filter((weekend) => !weekend.voided).at(-1);
+      const sourceEvents = active?.race.events ?? completed?.events ?? [];
+      const major = sourceEvents.filter((event) => event.severity !== "routine").slice(-12);
+      const scopeId = active?.race.id ?? completed?.weekend.id ?? current.id;
+      const title = active?.weekend.name ?? completed?.weekend.name ?? `${current.season.year} paddock`;
+      const storyContext = buildNarrativeStoryContext(current);
+      const storyFacts = [
+        ...storyContext.seasonArc,
+        ...storyContext.rivalries.map((rivalry) => `${rivalry.title}: ${rivalry.summary}`),
+        ...storyContext.teamDramas.slice(0, 4).map((drama) => `${drama.team}: ${drama.summary}`),
+        ...storyContext.upgrades.slice(-4).map((upgrade) => `Round ${upgrade.round} upgrade: ${upgrade.summary}`),
+      ];
+      const boundedFacts = [...(major.length ? major.map((entry) => entry.message) : ["No competitive session has been completed yet."]), ...storyFacts]
+        .map((fact) => fact.length > 400 ? `${fact.slice(0, 397)}...` : fact)
+        .slice(0, 40);
+      const activeDriverIds = new Set(current.season.teams.flatMap((team) => team.driverIds));
+      const narrationDrivers = [...current.season.drivers.filter((driver) => activeDriverIds.has(driver.id)), ...current.season.drivers.filter((driver) => !activeDriverIds.has(driver.id))].slice(0, 50);
+      const request: NarrativeRequest = {
+        scope: active ? "session" : completed ? "weekend" : "paddock",
         scopeId,
-        text: [...major.map((entry) => entry.message), ...storyContext.seasonArc.slice(0, 3)].join(" ") || "Narrative is queued until the local AI service is available.",
-        provider: "gemini",
-        model: health?.narration.model ?? "configured-gemini-model",
-        promptVersion: "narrative-v2",
-        status: "queued",
+        season: current.season.year,
+        title,
+        facts: boundedFacts,
+        characters: narrationDrivers.map((driver) => {
+          const team = current.season.teams.find((candidate) => candidate.driverIds.includes(driver.id));
+          return { id: driver.id, name: `${driver.givenName} ${driver.familyName}`, team: team?.name };
+        }),
+        tone: active ? "live" : completed ? "recap" : "paddock",
+        previousContext: current.narratives.filter((item) => item.status === "complete").at(-1)?.text.slice(-2500),
+        storyContext,
       };
-      await commit(appendNarrative(current, failed));
-      setNotice({ tone: "error", text: `${error instanceof Error ? error.message : "AI narration unavailable"} Simulation remains available; the story was queued.` });
+      setNarrationStatus("generating");
+      try {
+        const generated = await generateNarrative(request);
+        await commit(appendNarrative(current, { ...generated, scope: request.scope, scopeId, status: "complete" }), "Gemini filed a new paddock story.");
+      } catch (error) {
+        const failed: Omit<NarrativeVersion, "id" | "createdAt"> = {
+          scope: request.scope,
+          scopeId,
+          text: [...major.map((entry) => entry.message), ...storyContext.seasonArc.slice(0, 3)].join(" ") || "Narrative is queued until the local AI service is available.",
+          provider: "gemini",
+          model: health?.narration.model ?? "configured-gemini-model",
+          promptVersion: "narrative-v2",
+          status: "queued",
+        };
+        await commit(appendNarrative(current, failed));
+        setNotice({ tone: "error", text: `${error instanceof Error ? error.message : "AI narration unavailable"} Simulation remains available; the story was queued.` });
+      }
+    } finally {
+      setNarrationStatus("idle");
     }
-  }, [commit, current, health]);
+  }, [commit, current, health, narrationStatus]);
 
   const exportCurrent = useCallback(() => {
     if (!current) return;
@@ -231,7 +239,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SimulatorContextValue>(() => ({
-    loading, universes, current, view, health, notice, presets: BUILT_IN_PRESETS, setView,
+    loading, universes, current, view, health, notice, narrationStatus, presets: BUILT_IN_PRESETS, setView,
     selectUniverse: (id) => { setCurrentId(id); void db.settings.put({ key: "lastUniverseId", value: id }); },
     create, removeCurrent,
     beginWeekend: () => run(startWeekend, "Weekend started. Rules and base driver ratings are now locked."),
@@ -291,7 +299,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     narrate,
     editNarrative: (sourceId, text) => run((universe) => reviseNarrative(universe, sourceId, text), "Narrative revision stored without changing race facts."),
     exportCurrent, importBackup, refreshData,
-  }), [commit, create, current, exportCurrent, health, importBackup, loading, narrate, notice, removeCurrent, run, universes, view]);
+  }), [commit, create, current, exportCurrent, health, importBackup, loading, narrate, narrationStatus, notice, removeCurrent, run, universes, view]);
 
   return <SimulatorContext.Provider value={value}>{children}</SimulatorContext.Provider>;
 }
