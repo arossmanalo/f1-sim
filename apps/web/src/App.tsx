@@ -32,6 +32,7 @@ import { ArchiveView } from "./components/ArchiveView";
 import { CompareView } from "./components/CompareView";
 import { HomeView } from "./components/HomeView";
 import { RecordsView } from "./components/RecordsView";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 
 const navigation: Array<{ id: AppView; label: string; icon: typeof Gauge }> = [
   { id: "home", label: "Home", icon: Home },
@@ -47,12 +48,12 @@ const navigation: Array<{ id: AppView; label: string; icon: typeof Gauge }> = [
 ];
 
 export function App() {
-  const { loading, current, universes, view, setView, selectUniverse, health, notice } = useSimulator();
+  const { loading, current, universes, view, setView, selectUniverse, health, notice, confirmation, resolveConfirmation } = useSimulator();
   const [newOpen, setNewOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   if (loading) return <div className="boot-screen"><img className="boot-mark" src="/f1-logo.png" alt="Formula 1" /><p>Preparing race control…</p></div>;
-  if (!current) return <><main className="empty-app"><HomeView onNew={() => setNewOpen(true)} /></main>{newOpen && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create a universe"><div className="modal-sheet"><button className="modal-close" aria-label="Close" onClick={() => setNewOpen(false)}><X /></button><SeasonSetup compact onDone={() => setNewOpen(false)} /></div></div>}</>;
+  if (!current) return <><main className="empty-app"><HomeView onNew={() => setNewOpen(true)} /></main>{newOpen && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create a universe"><div className="modal-sheet"><button className="modal-close" aria-label="Close" onClick={() => setNewOpen(false)}><X /></button><SeasonSetup compact onDone={() => setNewOpen(false)} /></div></div>}<ConfirmDialog prompt={confirmation} onConfirm={() => resolveConfirmation(true)} onCancel={() => resolveConfirmation(false)} /></>;
 
   const View = {
     home: HomeView,
@@ -101,6 +102,7 @@ export function App() {
       </div>
 
       {newOpen && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create a universe"><div className="modal-sheet"><button className="modal-close" aria-label="Close" onClick={() => setNewOpen(false)}><X /></button><SeasonSetup compact onDone={() => setNewOpen(false)} /></div></div>}
+      <ConfirmDialog prompt={confirmation} onConfirm={() => resolveConfirmation(true)} onCancel={() => resolveConfirmation(false)} />
     </div>
   );
 }
