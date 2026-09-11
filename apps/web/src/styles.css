@@ -283,6 +283,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .free-agent-strip { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 10px; padding: 14px 20px; border: 1px solid var(--line); }
 .free-agent-strip span, .free-agent-strip small { color: #6c777f; font-size: 10px; }
 .free-agent-strip strong { font: 800 20px var(--display); }
+.driver-registry { display: grid; gap: 14px; padding: 24px; background: var(--paper-bright); border: 1px solid var(--line); }.driver-registry .section-note { margin: -3px 0 2px; }.driver-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding-top: 4px; border-top: 1px solid #dfe3e6; }.driver-form label { display: flex; flex-direction: column; gap: 7px; color: #59646d; font: 650 11px var(--display); }.driver-form input { min-height: 40px; padding: 0 10px; color: var(--ink); background: #fff; border: 1px solid #bec5ca; }.driver-form__actions { display: flex; align-items: end; gap: 8px; }
 .rules-ledger .lock-badge, .rules-ledger .open-badge { padding: 6px 9px; font: 700 10px var(--display); }
 .lock-badge { color: #923731; background: #f4d8d5; }.open-badge { color: #21694f; background: #d7ede4; }
 .rule-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin-top: 18px; background: var(--line); border: 1px solid var(--line); }
@@ -416,7 +417,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   .live-header { align-items: flex-start; padding: 20px; }.session-weather { min-width: auto; }.session-weather small { display: none; }
   .live-columns { display: flex; flex-direction: column; }.timing-tower { border-right: 0; }.timing-scroll { max-height: 430px; }.race-ribbon { border-right: 0; }.story-stream { max-height: 520px; }
   .control-desk { display: grid; grid-template-columns: 1fr; }.control-block + .control-block { padding: 20px 0 0; border-left: 0; border-top: 1px solid #3c4650; }
-  .garage-toolbar, .transfer-line { grid-template-columns: 1fr; }.rating-grid { grid-template-columns: 1fr; }.rule-grid { grid-template-columns: 1fr; }.clinch-grid { grid-template-columns: 1fr; }.workshop-savebar { align-items: stretch; flex-direction: column; }
+  .garage-toolbar, .transfer-line { grid-template-columns: 1fr; }.rating-grid { grid-template-columns: 1fr; }.rule-grid { grid-template-columns: 1fr; }.clinch-grid { grid-template-columns: 1fr; }.workshop-savebar { align-items: stretch; flex-direction: column; }.driver-form { grid-template-columns: 1fr 1fr; }.driver-form__actions { align-items: stretch; grid-column: 1 / -1; }
   .paddock-heading { padding-right: 0; padding-bottom: 80px; }.paddock-heading .button { left: 20px; right: auto; bottom: 18px; }
   .home-heading { padding-right: 0; padding-bottom: 80px; }.home-heading .button { left: 20px; right: auto; bottom: 18px; }.home-summary { grid-template-columns: 1fr; }.records-row { grid-template-columns: minmax(150px, 1fr) minmax(140px, 1fr) 70px 90px; }
   .comparison-board { grid-template-columns: 1fr; }.comparison-axis { min-height: 65px; grid-auto-flow: column; }.comparison-axis span { writing-mode: initial; }
