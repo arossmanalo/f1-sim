@@ -1,7 +1,9 @@
 import type { Driver, DriverRatings, NarrativeVersion, Team, TeamRatings, Universe } from "./types";
 
+export type DriverWorkshopValues = Partial<DriverRatings> & { potential?: number };
+
 export interface WorkshopEdits {
-  drivers: Record<string, Partial<DriverRatings>>;
+  drivers: Record<string, DriverWorkshopValues>;
   teams: Record<string, Partial<TeamRatings>>;
 }
 
@@ -49,9 +51,10 @@ export function applyWorkshopEdits(input: Universe, edits: WorkshopEdits): Unive
   for (const [driverId, values] of Object.entries(edits.drivers)) {
     const driver = universe.season.drivers.find((candidate) => candidate.id === driverId);
     if (!driver) throw new Error(`Driver ${driverId} not found.`);
-    for (const [field, value] of Object.entries(values) as Array<[keyof DriverRatings, number]>) {
+    for (const [field, value] of Object.entries(values) as Array<[keyof DriverWorkshopValues, number]>) {
       if (!Number.isFinite(value)) throw new Error(`${field} must be a number.`);
-      driver.ratings[field] = Math.max(0, Math.min(100, Math.round(value)));
+      if (field === "potential") driver.potential = Math.max(0, Math.min(100, Math.round(value)));
+      else driver.ratings[field] = Math.max(0, Math.min(100, Math.round(value)));
       driverChanges += 1;
     }
   }

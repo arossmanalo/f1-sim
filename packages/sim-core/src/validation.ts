@@ -39,6 +39,9 @@ function validateDriver(driver: Driver, errors: string[]): void {
       errors.push(`${driver.givenName} ${driver.familyName}: ${key} must be between 0 and 100.`);
     }
   }
+  if (!Number.isFinite(driver.potential) || driver.potential < 0 || driver.potential > 100) {
+    errors.push(`${driver.givenName} ${driver.familyName}: potential must be between 0 and 100.`);
+  }
   if (!Number.isInteger(driver.number) || driver.number < 0 || driver.number > 999) {
     errors.push(`${driver.givenName} ${driver.familyName}: invalid driver number.`);
   }
