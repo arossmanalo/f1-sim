@@ -8,7 +8,7 @@ function phaseLabel(phase: string): string {
   return phase.charAt(0).toUpperCase() + phase.slice(1);
 }
 
-export function HomeView({ onNew }: { onNew: () => void }) {
+export function HomeView({ onNew = () => undefined }: { onNew?: () => void }) {
   const { universes, current, selectUniverse, setView } = useSimulator();
   const totalRounds = universes.reduce((sum, universe) => sum + universe.season.weekends.length, 0);
   const completedRounds = universes.reduce((sum, universe) => sum + universe.season.completedWeekends.filter((weekend) => !weekend.voided).length, 0);
