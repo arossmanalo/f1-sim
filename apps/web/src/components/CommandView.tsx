@@ -4,7 +4,7 @@ import { displayName } from "../format";
 import { CircuitMap } from "./CircuitMap";
 
 export function CommandView() {
-  const { current, beginWeekend, simulateSeason, setView, branch, exportCurrent, refreshData, advancePhase, editOffseasonRating } = useSimulator();
+  const { current, beginWeekend, simulateSeason, setView, branch, exportCurrent, refreshData, advancePhase, editOffseasonRating, confirm } = useSimulator();
   if (!current) return null;
   const season = current.season;
   const next = season.weekends[season.currentRoundIndex];
@@ -27,7 +27,7 @@ export function CommandView() {
             {season.currentWeekend && <button className="button button--signal" onClick={() => setView("live")}><Radio size={18} /> Return to live timing</button>}
             {season.phase === "season-complete" && current.mode === "dynasty" && <button className="button button--signal" onClick={() => void advancePhase()}><ArrowRight size={18} /> Open offseason</button>}
             {season.phase === "offseason" && <button className="button button--signal" onClick={() => void advancePhase()}><Check size={18} /> Accept offseason package</button>}
-            {season.phase === "between-weekends" && <button className="button button--dark" onClick={() => { if (window.confirm("Simulate every remaining round? Live interventions will be skipped.")) void simulateSeason(); }}><FastForward size={18} /> Finish season</button>}
+            {season.phase === "between-weekends" && <button className="button button--dark" onClick={() => void confirm({ title: "Finish the season?", message: "Every remaining round will be simulated without live interventions. This cannot be undone once results are finalized.", confirmLabel: "Finish season" }).then((approved) => { if (approved) void simulateSeason(); })}><FastForward size={18} /> Finish season</button>}
           </div>
         </div>
         <CircuitMap circuit={circuit} round={next?.round ?? season.weekends.length} />
