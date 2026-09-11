@@ -53,6 +53,17 @@ interface CreateOptions {
   randomness: Partial<RandomnessSettings>;
 }
 
+export interface ConfirmationPrompt {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  danger?: boolean;
+}
+
+interface ConfirmationState extends ConfirmationPrompt {
+  resolve(value: boolean): void;
+}
+
 interface SimulatorContextValue {
   loading: boolean;
   universes: Universe[];
@@ -61,6 +72,7 @@ interface SimulatorContextValue {
   health?: ServiceHealth;
   narrationStatus: "idle" | "preparing" | "generating";
   notice?: { tone: "info" | "success" | "error"; text: string };
+  confirmation?: ConfirmationPrompt;
   presets: SeasonPreset[];
   setView(view: AppView): void;
   selectUniverse(id: string): void;
@@ -90,6 +102,8 @@ interface SimulatorContextValue {
   exportCurrent(): void;
   importBackup(file: File): Promise<void>;
   refreshData(): Promise<void>;
+  confirm(prompt: ConfirmationPrompt): Promise<boolean>;
+  resolveConfirmation(value: boolean): void;
 }
 
 const SimulatorContext = createContext<SimulatorContextValue | undefined>(undefined);
@@ -102,6 +116,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<ServiceHealth>();
   const [narrationStatus, setNarrationStatus] = useState<"idle" | "preparing" | "generating">("idle");
   const [notice, setNotice] = useState<SimulatorContextValue["notice"]>();
+  const [confirmation, setConfirmation] = useState<ConfirmationState>();
   const current = universes.find((universe) => universe.id === currentId);
 
   useEffect(() => {
@@ -141,6 +156,20 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
       setNotice({ tone: "error", text: error instanceof Error ? error.message : "The operation failed." });
     }
   }, [commit, current]);
+
+  const confirm = useCallback((prompt: ConfirmationPrompt) => new Promise<boolean>((resolve) => {
+    setConfirmation((previous) => {
+      previous?.resolve(false);
+      return { ...prompt, resolve };
+    });
+  }), []);
+
+  const resolveConfirmation = useCallback((value: boolean) => {
+    setConfirmation((previous) => {
+      previous?.resolve(value);
+      return undefined;
+    });
+  }, []);
 
   const create = useCallback(async (options: CreateOptions) => {
     const requestedName = options.name.trim() || `${options.preset.year} season`;
@@ -253,7 +282,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SimulatorContextValue>(() => ({
-    loading, universes, current, view, health, notice, narrationStatus, presets: BUILT_IN_PRESETS, setView,
+    loading, universes, current, view, health, notice, confirmation, narrationStatus, presets: BUILT_IN_PRESETS, setView,
     selectUniverse: (id) => { setCurrentId(id); void db.settings.put({ key: "lastUniverseId", value: id }); },
     create, removeCurrent,
     beginWeekend: () => run(startWeekend, "Weekend started. Rules and base driver ratings are now locked."),
@@ -315,8 +344,8 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     editOffseasonRating: (teamId, field, delta) => run((universe) => editOffseasonRating(universe, teamId, field, delta), "Offseason package updated."),
     narrate,
     editNarrative: (sourceId, text) => run((universe) => reviseNarrative(universe, sourceId, text), "Narrative revision stored without changing race facts."),
-    exportCurrent, importBackup, refreshData,
-  }), [commit, create, current, exportCurrent, health, importBackup, loading, narrate, narrationStatus, notice, removeCurrent, run, universes, view]);
+    exportCurrent, importBackup, refreshData, confirm, resolveConfirmation,
+  }), [commit, confirm, create, current, exportCurrent, health, importBackup, loading, narrate, narrationStatus, notice, removeCurrent, resolveConfirmation, run, universes, view, confirmation]);
 
   return <SimulatorContext.Provider value={value}>{children}</SimulatorContext.Provider>;
 }
