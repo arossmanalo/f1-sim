@@ -155,6 +155,9 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     if (!current || narrationStatus !== "idle") return;
     setNarrationStatus("preparing");
     try {
+      // Let React paint the preparation state before the synchronous context
+      // assembly and network request begin.
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 120));
       const active = current.season.currentWeekend;
       const completed = current.season.completedWeekends.filter((weekend) => !weekend.voided).at(-1);
       const sourceEvents = active?.race.events ?? completed?.events ?? [];
