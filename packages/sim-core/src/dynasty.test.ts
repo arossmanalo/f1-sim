@@ -1,7 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { PRESET_2005, PRESET_2026, approveOffseason, applyInSeasonDevelopment, createUniverse, fastForwardSeason, moveDriver, proposeOffseason, validatePreset } from "./index";
+import { PRESET_2005, PRESET_2026, addCustomDriver, advanceSeasonPhase, approveOffseason, applyInSeasonDevelopment, createUniverse, editOffseasonRating, fastForwardSeason, moveDriver, proposeOffseason, resetTeamRatingsForNextSeason, validatePreset } from "./index";
 
 describe("dynasty progression", () => {
+  it("advances through preseason, season, and an editable offseason package", () => {
+    const preset = structuredClone(PRESET_2005);
+    preset.weekends = [preset.weekends[0]!];
+    let universe = createUniverse(preset, { mode: "dynasty", seed: 7 });
+    expect(universe.season.phase).toBe("preseason");
+    universe = advanceSeasonPhase(universe);
+    expect(universe.season.phase).toBe("between-weekends");
+    universe = advanceSeasonPhase(fastForwardSeason(universe));
+    expect(universe.season.phase).toBe("offseason");
+    const change = universe.season.offseasonProposal!.ratingChanges[0]!;
+    universe = editOffseasonRating(universe, change.teamId, change.field, 8);
+    expect(universe.season.offseasonProposal!.ratingChanges[0]!.delta).toBe(8);
+    universe = advanceSeasonPhase(universe);
+    expect(universe.season.phase).toBe("preseason");
+  });
+
+  it("rebases team ratings and keeps custom drivers unattached", () => {
+    const universe = createUniverse(PRESET_2005, { seed: 8 });
+    universe.season.teams.forEach((team) => { for (const field of Object.keys(team.ratings) as Array<keyof typeof team.ratings>) team.ratings[field] = 100; });
+    const reset = resetTeamRatingsForNextSeason(universe);
+    expect(reset.season.teams.some((team) => Object.values(team.ratings).some((rating) => rating < 100))).toBe(true);
+    const source = reset.season.drivers[0]!;
+    const custom = structuredClone(source);
+    custom.id = "custom-test-driver";
+    custom.code = "TST";
+    custom.number = 999;
+    custom.givenName = "Test";
+    custom.familyName = "Driver";
+    custom.potential = 99;
+    const withDriver = addCustomDriver(reset, custom);
+    expect(withDriver.season.drivers.find((driver) => driver.id === custom.id)?.potential).toBe(99);
+    expect(withDriver.season.teams.every((team) => !team.driverIds.includes(custom.id))).toBe(true);
+  });
+
   it("pauses for an offseason package and starts the approved next season cleanly", () => {
     const preset = structuredClone(PRESET_2005);
     preset.weekends = [preset.weekends[0]!];
