@@ -5,7 +5,7 @@ import { useSimulator } from "../simulator-context";
 import { displayName, formatGap } from "../format";
 
 export function LiveView() {
-  const { current, beginWeekend, advance, finish, finalize, intervene, confirm } = useSimulator();
+  const { current, beginWeekend, advance, finish, finalize, intervene, confirm, setView } = useSimulator();
   const [showEveryLap, setShowEveryLap] = useState(false);
   const [driverId, setDriverId] = useState<string>();
   const [weather, setWeather] = useState<Weather>("rain");
@@ -15,7 +15,7 @@ export function LiveView() {
   const next = current.season.weekends[current.season.currentRoundIndex];
 
   if (!weekendState) {
-    return <div className="empty-state live-empty"><div className="empty-glyph"><Radio /></div><h1>{next ? "Pit wall is standing by" : "Season complete"}</h1><p>{next ? `${next.name} is next. Starting locks the rules and driver base ratings for this season.` : "There are no more weekends on the calendar."}</p>{next && <button className="button button--signal" onClick={() => void beginWeekend()}><Flag /> Start {next.name}</button>}</div>;
+    return <div className="empty-state live-empty"><div className="empty-glyph"><Radio /></div><h1>{next ? "Pit wall is standing by" : "Season complete"}</h1><p>{next ? `${next.name} is next. Starting locks the rules and driver base ratings for this season.` : "There are no more weekends on the calendar."}</p>{next && current.season.phase !== "preseason" && <button className="button button--signal" onClick={() => void beginWeekend()}><Flag /> Start {next.name}</button>}{next && current.season.phase === "preseason" && <button className="button button--signal" onClick={() => setView("command")}><Flag /> Enter season command</button>}</div>;
   }
 
   const session = weekendState.race;
