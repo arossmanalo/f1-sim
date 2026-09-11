@@ -38,6 +38,19 @@ export interface TeamRatings {
   developmentPotential: number;
 }
 
+export type TeamPerformanceField = Exclude<keyof TeamRatings, "developmentPotential">;
+
+export interface TeamUpgrade {
+  id: Id;
+  teamId: Id;
+  season: number;
+  /** Round number at which this change is first reflected in the car. */
+  round: number;
+  field: TeamPerformanceField;
+  delta: number;
+  summary: string;
+}
+
 export interface CircuitProfile {
   power: number;
   aero: number;
@@ -293,6 +306,16 @@ export interface CompletedWeekend {
   voided: boolean;
 }
 
+/** Immutable snapshot of a completed dynasty season for the archive view. */
+export interface SeasonArchive {
+  year: number;
+  drivers: Driver[];
+  teams: Team[];
+  completedWeekends: CompletedWeekend[];
+  driverStandings: DriverStanding[];
+  teamStandings: TeamStanding[];
+}
+
 export interface WeekendState {
   weekend: Weekend;
   qualifying: RaceResultEntry[];
@@ -331,6 +354,8 @@ export interface OffseasonProposal {
   ratingChanges: Array<{ teamId: Id; field: keyof TeamRatings; delta: number }>;
   calendarChanges: string[];
   ruleChanges: string[];
+  /** Generated free agents who can be signed or placed into a seat after approval. */
+  rookies?: Driver[];
 }
 
 export interface SeasonState {
@@ -348,6 +373,8 @@ export interface SeasonState {
   completedWeekends: CompletedWeekend[];
   driverStandings: DriverStanding[];
   teamStandings: TeamStanding[];
+  /** Development changes applied between race weekends. Optional for v1 saves. */
+  teamUpgrades?: TeamUpgrade[];
   rulesLocked: boolean;
   offseasonProposal?: OffseasonProposal;
 }
@@ -364,6 +391,8 @@ export interface Universe {
   season: SeasonState;
   audit: AuditEntry[];
   narratives: NarrativeVersion[];
+  /** Prior completed dynasty seasons; optional for existing v1 saves. */
+  seasonHistory?: SeasonArchive[];
   parentUniverseId?: Id;
   branchRound?: number;
 }
@@ -387,6 +416,16 @@ export interface NarrativeRequest {
   characters: Array<{ id: Id; name: string; team?: string }>;
   tone: "live" | "recap" | "paddock";
   previousContext?: string;
+  storyContext?: NarrativeStoryContext;
+}
+
+export interface NarrativeStoryContext {
+  seasonArc: string[];
+  rivalries: Array<{ title: string; drivers: string[]; summary: string }>;
+  teamDramas: Array<{ team: string; summary: string }>;
+  driverTrajectories: Array<{ name: string; age: number; potential: number; rating: number; points: number; trend: string }>;
+  teamTrajectories: Array<{ team: string; points: number; trend: string; upgrades: number }>;
+  upgrades: Array<{ team: string; round: number; summary: string }>;
 }
 
 export interface NarrativeProvider {

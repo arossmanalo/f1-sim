@@ -20,6 +20,7 @@ import type {
   WeekendState,
 } from "./types";
 import { validatePreset } from "./validation";
+import { applyInSeasonDevelopment } from "./progression";
 
 const DEFAULT_RANDOMNESS: RandomnessSettings = {
   preset: "realistic",
@@ -252,10 +253,12 @@ export function createUniverse(
       completedWeekends: [],
       driverStandings: preset.drivers.map((driver) => ({ driverId: driver.id, points: 0, wins: 0, podiums: 0, poles: 0, finishes: {} })),
       teamStandings: preset.teams.map((team) => ({ teamId: team.id, points: 0, wins: 0 })),
+      teamUpgrades: [],
       rulesLocked: false,
     },
     audit: [{ id: uid("audit"), action: "create-universe", summary: `Created from immutable ${preset.name} preset.`, at: now }],
     narratives: [],
+    seasonHistory: [],
   };
   return universe;
 }
@@ -539,7 +542,7 @@ export function applyIntervention(
 }
 
 export function finalizeWeekend(input: Universe): Universe {
-  const universe = clone(input);
+  let universe = clone(input);
   const current = universe.season.currentWeekend;
   if (!current || current.race.status !== "complete" || !current.race.result) throw new Error("Finish the race before finalizing the weekend.");
   universe.season.completedWeekends.push({
@@ -554,6 +557,7 @@ export function finalizeWeekend(input: Universe): Universe {
   universe.season.currentRoundIndex += 1;
   universe.season.currentWeekend = undefined;
   universe.season.phase = universe.season.currentRoundIndex >= universe.season.weekends.length ? "season-complete" : "between-weekends";
+  if (universe.season.phase !== "season-complete") universe = applyInSeasonDevelopment(universe);
   const rebuilt = rebuildStandings(
     universe.season.drivers.map((driver) => driver.id),
     universe.season.teams.map((team) => team.id),
@@ -574,6 +578,15 @@ export function voidLastWeekend(input: Universe): Universe {
   last.voided = true;
   universe.season.currentRoundIndex = last.weekend.round - 1;
   universe.season.phase = universe.season.currentRoundIndex === 0 ? "preseason" : "between-weekends";
+  // A voided result rewinds the deterministic checkpoint before that weekend.
+  // Development packages announced after it must not leak into the rerun.
+  const upgrades = universe.season.teamUpgrades ?? [];
+  const retainedUpgrades = upgrades.filter((upgrade) => upgrade.round <= last.weekend.round);
+  for (const upgrade of upgrades.filter((candidate) => candidate.round > last.weekend.round)) {
+    const team = universe.season.teams.find((candidate) => candidate.id === upgrade.teamId);
+    if (team) team.ratings[upgrade.field] = Math.max(0, Math.min(100, team.ratings[upgrade.field] - upgrade.delta));
+  }
+  universe.season.teamUpgrades = retainedUpgrades;
   const rebuilt = rebuildStandings(
     universe.season.drivers.map((driver) => driver.id),
     universe.season.teams.map((team) => team.id),

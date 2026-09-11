@@ -31,6 +31,7 @@ export function GarageView() {
   if (!current || !team || !driver) return null;
   const driverLocked = current.season.rulesLocked;
   const teamLocked = current.season.phase === "session" || current.season.phase === "season-complete";
+  const teamUpgrades = (current.season.teamUpgrades ?? []).filter((upgrade) => upgrade.teamId === team.id).slice().reverse();
   const pendingCount = Object.values(driverDraft).reduce((total, values) => total + Object.keys(values).length, 0)
     + Object.values(teamDraft).reduce((total, values) => total + Object.keys(values).length, 0);
   const workshopEdits: WorkshopEdits = { drivers: driverDraft, teams: teamDraft };
@@ -62,13 +63,14 @@ export function GarageView() {
           <div className="section-heading"><div><span>Car and operations</span><h2>{team.shortName} performance</h2></div><Wrench /></div>
           <p className="evidence-line"><ShieldCheck /> {team.evidence.method} · {team.evidence.confidence} confidence</p>
           <div className="rating-grid">{teamFields.map((field) => <RatingControl key={field} label={field} value={teamDraft[team.id]?.[field] ?? team.ratings[field]} disabled={teamLocked} onChange={(value) => setTeamDraft((existing) => ({ ...existing, [team.id]: { ...existing[team.id], [field]: value } }))} />)}</div>
+          <div className="upgrade-log"><div><span>Development log</span><strong>{teamUpgrades.length ? `${teamUpgrades.length} package${teamUpgrades.length === 1 ? "" : "s"} landed` : "No packages landed yet"}</strong></div>{teamUpgrades.slice(0, 4).map((upgrade) => <article key={upgrade.id}><b>R{upgrade.round}</b><span>{upgrade.summary}</span></article>)}</div>
           {teamLocked && <p className="lock-note"><AlertCircle /> Team ratings can change only at a stable weekend or offseason boundary.</p>}
         </section>
 
         <section className="rating-bay">
           <div className="section-heading"><div><span>Driver profile</span><h2>{driver.givenName} {driver.familyName}</h2></div><span className="driver-number" style={{ background: team.color, color: contrastText(team.color) }}>{driver.number}</span></div>
           <div className="seat-tabs">{team.driverIds.map((id, index) => { const person = current.season.drivers.find((item) => item.id === id); return <button className={driver.id === id ? "active" : ""} onClick={() => setDriverId(id)} key={id}>Seat {index + 1}<strong>{person?.code}</strong></button>; })}</div>
-          <p className="evidence-line"><ShieldCheck /> {driver.evidence.method} · {driver.evidence.confidence} confidence</p>
+          <p className="evidence-line"><ShieldCheck /> Age {driver.age} · Potential {driver.potential} · {driver.evidence.method} · {driver.evidence.confidence} confidence</p>
           <div className="rating-grid">{driverFields.map((field) => <RatingControl key={field} label={field} value={driverDraft[driver.id]?.[field] ?? driver.ratings[field]} disabled={driverLocked} onChange={(value) => setDriverDraft((existing) => ({ ...existing, [driver.id]: { ...existing[driver.id], [field]: value } }))} />)}</div>
           {driverLocked && <p className="lock-note"><AlertCircle /> Base driver ratings lock at round one. Form, morale, pressure, and transfers may still evolve.</p>}
         </section>

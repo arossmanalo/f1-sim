@@ -1,4 +1,5 @@
 import { DeterministicRng, hashSeed } from "./rng";
+import { generateRookies, progressDriverForNextSeason } from "./progression";
 import type { Contract, OffseasonProposal, TeamRatings, Universe } from "./types";
 
 function uid(prefix: string): string {
@@ -19,20 +20,27 @@ export function proposeOffseason(input: Universe): Universe {
     driverMoves.push({ driverId: first.driverIds[1], fromTeamId: first.id, toTeamId: second.id });
   }
   const fields: Array<keyof TeamRatings> = ["power", "aerodynamics", "mechanicalGrip", "tirePreservation", "reliability", "pitCrew", "strategy"];
-  const ratingChanges = universe.season.teams.map((team) => ({
-    teamId: team.id,
-    field: rng.pick(fields),
-    delta: Math.round(rng.between(-2, 4) * universe.randomness.developmentVariance * (team.ratings.developmentPotential / 80)),
-  }));
+  const ratingChanges = universe.season.teams.map((team) => {
+    const rawDelta = Math.round(rng.between(-2, 4) * universe.randomness.developmentVariance * (team.ratings.developmentPotential / 80));
+    return {
+      teamId: team.id,
+      field: rng.pick(fields),
+      // Every constructor gets a meaningful offseason direction; the size is
+      // still small enough for the championship to remain contestable.
+      delta: rawDelta || (rng.chance(team.ratings.developmentPotential / 100) ? 1 : -1),
+    };
+  });
+  const rookies = generateRookies(universe, universe.season.year + 1, rng);
   const proposal: OffseasonProposal = {
     id: uid("offseason"),
     targetSeason: universe.season.year + 1,
     status: "pending",
-    summary: `${driverMoves.length} proposed driver move${driverMoves.length === 1 ? "" : "s"}, ${ratingChanges.filter((item) => item.delta !== 0).length} development changes, and a carried-forward calendar awaiting race-director approval.`,
+    summary: `${driverMoves.length} proposed driver move${driverMoves.length === 1 ? "" : "s"}, ${ratingChanges.filter((item) => item.delta !== 0).length} development changes, and ${rookies.length} new rookie${rookies.length === 1 ? "" : "s"} for the free-agent pool.`,
     driverMoves,
     ratingChanges,
     calendarChanges: ["Carry forward the current calendar; race director may edit before approval."],
     ruleChanges: rng.chance(0.25) ? ["Proposal: adjust sprint allocation for the next season."] : ["Carry forward the current major-era rules."],
+    rookies,
   };
   universe.season.offseasonProposal = proposal;
   universe.season.phase = "offseason";
@@ -44,6 +52,16 @@ export function approveOffseason(input: Universe): Universe {
   const universe = structuredClone(input);
   const proposal = universe.season.offseasonProposal;
   if (!proposal || proposal.status !== "pending") throw new Error("There is no pending offseason package.");
+
+  const priorHistory = universe.seasonHistory ?? [];
+  universe.seasonHistory = [...priorHistory, {
+    year: universe.season.year,
+    drivers: structuredClone(universe.season.drivers),
+    teams: structuredClone(universe.season.teams),
+    completedWeekends: structuredClone(universe.season.completedWeekends),
+    driverStandings: structuredClone(universe.season.driverStandings),
+    teamStandings: structuredClone(universe.season.teamStandings),
+  }];
 
   for (const change of proposal.ratingChanges) {
     const team = universe.season.teams.find((candidate) => candidate.id === change.teamId);
@@ -62,16 +80,14 @@ export function approveOffseason(input: Universe): Universe {
   universe.season.ruleset.year = proposal.targetSeason;
   universe.season.ruleset.id = `rules-${proposal.targetSeason}-${universe.id}`;
   universe.season.weekends.forEach((weekend) => { weekend.id = `${proposal.targetSeason}-round-${weekend.round}`; });
-  universe.season.drivers.forEach((driver) => {
-    driver.age += 1;
-    const development = driver.age < 27 ? (driver.potential - driver.ratings.racePace) * 0.12 : driver.age > 34 ? -0.8 : 0.15;
-    driver.ratings.racePace = Math.max(0, Math.min(100, Math.round(driver.ratings.racePace + development)));
-    driver.ratings.qualifyingPace = Math.max(0, Math.min(100, Math.round(driver.ratings.qualifyingPace + development * 0.8)));
-    driver.ratings.experience = Math.min(100, driver.ratings.experience + 1);
-    driver.form = 50;
-    driver.pressure = 50;
-    driver.injury = undefined;
-  });
+  universe.season.drivers = universe.season.drivers.map((driver) => progressDriverForNextSeason(
+    driver,
+    new DeterministicRng(hashSeed(universe.baseSeed, proposal.targetSeason, "driver-progression", driver.id)),
+    universe.randomness.developmentVariance,
+  ));
+  const incomingRookies = proposal.rookies ?? generateRookies(universe, proposal.targetSeason);
+  const existingDriverIds = new Set(universe.season.drivers.map((driver) => driver.id));
+  universe.season.drivers.push(...incomingRookies.filter((driver) => !existingDriverIds.has(driver.id)));
   universe.season.contracts.forEach((contract) => {
     if (contract.endSeason < proposal.targetSeason) contract.status = "expired";
   });
@@ -81,6 +97,7 @@ export function approveOffseason(input: Universe): Universe {
   universe.season.completedWeekends = [];
   universe.season.driverStandings = universe.season.drivers.map((driver) => ({ driverId: driver.id, points: 0, wins: 0, podiums: 0, poles: 0, finishes: {} }));
   universe.season.teamStandings = universe.season.teams.map((team) => ({ teamId: team.id, points: 0, wins: 0 }));
+  universe.season.teamUpgrades = [];
   universe.season.rulesLocked = false;
   universe.season.offseasonProposal = undefined;
   universe.season.phase = "preseason";

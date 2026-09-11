@@ -17,7 +17,7 @@ export function PaddockView() {
   const { current, narrate, editNarrative, health } = useSimulator();
   if (!current) return null;
   return <div className="page-stack paddock-page">
-    <header className="page-heading paddock-heading"><span>Paddock wire</span><h1>The season beyond the stopwatch</h1><p>Gemini turns verified events into drama. Generated words are archived; race facts stay untouchable.</p><button className="button button--signal" onClick={() => void narrate()}><Sparkles /> File a new report</button></header>
+    <header className="page-heading paddock-heading"><span>Paddock wire</span><h1>The season beyond the stopwatch</h1><p>Gemini is given the season arc, rivalries, team development, rookie paths, and verified events so each report continues a story. Generated words are archived; race facts stay untouchable.</p><button className="button button--signal" onClick={() => void narrate()}><Sparkles /> File a new report</button></header>
     <div className={`provider-banner ${health?.narration.available ? "provider-banner--ready" : "provider-banner--off"}`}><Bot /><span><strong>{health?.narration.available ? "Gemini newsroom connected" : "AI narration unavailable"}</strong><small>{health?.narration.available ? `Using ${health.narration.model}; major moments are batched to preserve quota.` : "Simulation continues. Factual summaries remain visible and prose is queued."}</small></span><RefreshCw /></div>
     <section className="narrative-feed">
       {current.narratives.slice().reverse().map((narrative) => <Story narrative={narrative} key={narrative.id} onSave={editNarrative} />)}

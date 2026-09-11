@@ -35,6 +35,14 @@ const narrativeSchema = z.object({
   characters: z.array(z.object({ id: z.string(), name: z.string(), team: z.string().optional() })).max(50),
   tone: z.enum(["live", "recap", "paddock"]),
   previousContext: z.string().max(4000).optional(),
+  storyContext: z.object({
+    seasonArc: z.array(z.string().min(1).max(400)).max(12),
+    rivalries: z.array(z.object({ title: z.string().max(120), drivers: z.array(z.string().max(100)).max(4), summary: z.string().max(400) })).max(8),
+    teamDramas: z.array(z.object({ team: z.string().max(100), summary: z.string().max(500) })).max(10),
+    driverTrajectories: z.array(z.object({ name: z.string().max(100), age: z.number().int().min(14).max(80), potential: z.number().min(0).max(100), rating: z.number().min(0).max(100), points: z.number().min(0), trend: z.string().max(160) })).max(20),
+    teamTrajectories: z.array(z.object({ team: z.string().max(100), points: z.number().min(0), trend: z.string().max(160), upgrades: z.number().int().min(0) })).max(20),
+    upgrades: z.array(z.object({ team: z.string().max(100), round: z.number().int().min(1).max(100), summary: z.string().max(400) })).max(12),
+  }).optional(),
 });
 
 app.post("/api/narration", async (request, response) => {
@@ -44,24 +52,28 @@ app.post("/api/narration", async (request, response) => {
 
   const data = parsed.data;
   const allowedNames = data.characters.map((character) => `${character.name}${character.team ? ` (${character.team})` : ""}`).join(", ");
+  const allowedTeams = [...new Set(data.characters.map((character) => character.team).filter(Boolean))].join(", ");
   const prompt = [
-    "You are the restrained but dramatic editorial voice of a Formula racing season simulator.",
-    "Write vivid, specific motorsport prose. Never invent a result, number, person, incident, quote, or motivation.",
-    "Treat the FACTS block as the complete source of truth. Use only named people and teams from ALLOWED CHARACTERS.",
+    "You are the continuing season storyteller for a restrained but dramatic Formula racing simulator.",
+    "Write a season story, not a box-score recap: connect the latest moments to rivalries, teammate tension, team politics, development swings, rookie emergence, aging, and title pressure.",
+    "Never invent a result, number, person, incident, quote, private motivation, or relationship. If the context does not support a claim, leave it out.",
+    "Treat FACTS and SEASON STORY CONTEXT as the complete source of truth. Use only named people from ALLOWED CHARACTERS and teams from ALLOWED TEAMS.",
     `Tone: ${data.tone}. Scope: ${data.scope}. Season: ${data.season}.`,
     `Title: ${data.title}`,
     `ALLOWED CHARACTERS: ${allowedNames || "None"}`,
+    `ALLOWED TEAMS: ${allowedTeams || "None"}`,
     "FACTS:",
     ...data.facts.map((fact) => `- ${fact}`),
+    data.storyContext ? `SEASON STORY CONTEXT (structured, canonical):\n${JSON.stringify(data.storyContext, null, 2)}` : "",
     data.previousContext ? `CONTINUITY CONTEXT:\n${data.previousContext}` : "",
-    "Return two to four compact paragraphs. Do not add a heading or markdown list.",
+    "Return three to five compact paragraphs with a clear sense of what this season is becoming. Do not add a heading or markdown list.",
   ].filter(Boolean).join("\n");
 
   try {
     const generated = await ai.models.generateContent({ model, contents: prompt });
     const text = generated.text?.trim();
     if (!text) throw new Error("Gemini returned no text.");
-    return response.json({ text, provider: "gemini", model, promptVersion: "narrative-v1" });
+    return response.json({ text, provider: "gemini", model, promptVersion: "narrative-v2" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Gemini error";
     return response.status(502).json({ error: message, retryable: true });
