@@ -130,6 +130,10 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .season-rail strong { font: 760 13px var(--display); }
 .progress-track { height: 5px; overflow: hidden; background: #b9c1c7; }
 .progress-track span { display: block; height: 100%; background: var(--graphite); }
+.phase-desk { display: grid; gap: 18px; padding: 24px; background: var(--paper-bright); border: 1px solid var(--line); }
+.phase-steps { display: grid; grid-template-columns: 1fr 28px 1fr 28px 1fr; align-items: stretch; gap: 8px; }
+.phase-step { display: grid; gap: 5px; min-height: 88px; padding: 14px; background: #e8eaec; border-top: 4px solid #bbc2c7; }.phase-step--active { color: white; background: var(--graphite); border-top-color: var(--yellow); }.phase-step--done { border-top-color: #5b8b78; }.phase-step b { color: #7c878f; font: 800 10px var(--display); }.phase-step--active b, .phase-step--done b { color: var(--yellow); }.phase-step span { font: 780 15px var(--display); }.phase-step small { color: #6f7c84; font-size: 10px; }.phase-step--active small { color: #bec8ce; }.phase-arrow { align-self: center; color: #8d989f; }
+.phase-note { margin: 0; color: #68757e; font-size: 11px; line-height: 1.5; }.offseason-package { display: grid; gap: 14px; padding-top: 4px; border-top: 1px solid #dfe3e6; }.offseason-package > div:first-child { display: flex; flex-direction: column; gap: 4px; }.offseason-package strong { font: 760 18px var(--display); }.offseason-package small { color: #697780; font-size: 10px; line-height: 1.4; }.offseason-changes { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }.offseason-change { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: #f4f5f5; }.offseason-change > span { overflow: hidden; color: #5f6d76; font: 650 10px var(--display); text-overflow: ellipsis; white-space: nowrap; }.offseason-change > div { display: flex; align-items: center; gap: 7px; }.offseason-change button { width: 25px; height: 25px; display: grid; place-items: center; color: #54626b; background: transparent; border: 1px solid #c0c7cc; cursor: pointer; }.offseason-change b { min-width: 28px; color: var(--ink); text-align: center; font: 800 13px var(--display); }
 .command-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(330px, .8fr); gap: 24px; }
 .standings-snapshot, .operations-panel, .data-section, .rating-bay, .transfer-console, .offseason-desk, .race-archive, .audit-stream, .rules-ledger { padding: 24px; background: var(--paper-bright); border: 1px solid var(--line); }
 .podium-list { margin-top: 20px; border-top: 1px solid var(--ink); }
@@ -407,6 +411,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   .season-setup--compact .setup-intro { min-height: 300px; }
   .hero-copy { padding: 34px 25px; }.hero-copy h1 { font-size: 44px; }.circuit-map { min-height: 220px; }
   .season-rail { grid-template-columns: 1fr; }.season-rail .progress-track { width: 100%; }
+  .phase-steps { grid-template-columns: 1fr; }.phase-arrow { display: none; }
   .race-log-strip { grid-template-columns: 1fr; }.race-log-strip > div { border-right: 0; border-bottom: 1px solid #46515b; }
   .live-header { align-items: flex-start; padding: 20px; }.session-weather { min-width: auto; }.session-weather small { display: none; }
   .live-columns { display: flex; flex-direction: column; }.timing-tower { border-right: 0; }.timing-scroll { max-height: 430px; }.race-ribbon { border-right: 0; }.story-stream { max-height: 520px; }

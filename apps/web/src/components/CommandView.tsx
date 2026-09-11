@@ -1,10 +1,10 @@
-import { Download, FastForward, Flag, GitFork, Radio, RefreshCw, Route, Sparkles, Trophy } from "lucide-react";
+import { ArrowRight, Check, Download, FastForward, Flag, GitFork, Minus, Plus, Radio, RefreshCw, Route, Sparkles, Trophy } from "lucide-react";
 import { useSimulator } from "../simulator-context";
 import { displayName } from "../format";
 import { CircuitMap } from "./CircuitMap";
 
 export function CommandView() {
-  const { current, beginWeekend, simulateSeason, setView, branch, exportCurrent, refreshData } = useSimulator();
+  const { current, beginWeekend, simulateSeason, setView, branch, exportCurrent, refreshData, advancePhase, editOffseasonRating } = useSimulator();
   if (!current) return null;
   const season = current.season;
   const next = season.weekends[season.currentRoundIndex];
@@ -22,9 +22,12 @@ export function CommandView() {
           <h1>{next ? next.name : `${season.year} season complete`}</h1>
           <p>{next && circuit ? `${circuit.name}, ${circuit.city}. ${circuit.profile.lapCount} laps await.` : current.mode === "dynasty" ? "Review the final tables, then prepare the next offseason package." : "The alternate history is now sealed."}</p>
           <div className="hero-actions">
-            {next && !season.currentWeekend && <button className="button button--signal" onClick={() => void beginWeekend().then(() => setView("live"))}><Radio size={18} /> Start weekend</button>}
+            {season.phase === "preseason" && <button className="button button--signal" onClick={() => void advancePhase()}><ArrowRight size={18} /> Enter season</button>}
+            {next && season.phase !== "preseason" && !season.currentWeekend && <button className="button button--signal" onClick={() => void beginWeekend().then(() => setView("live"))}><Radio size={18} /> Start weekend</button>}
             {season.currentWeekend && <button className="button button--signal" onClick={() => setView("live")}><Radio size={18} /> Return to live timing</button>}
-            {season.phase !== "season-complete" && <button className="button button--dark" onClick={() => { if (window.confirm("Simulate every remaining round? Live interventions will be skipped.")) void simulateSeason(); }}><FastForward size={18} /> Finish season</button>}
+            {season.phase === "season-complete" && current.mode === "dynasty" && <button className="button button--signal" onClick={() => void advancePhase()}><ArrowRight size={18} /> Open offseason</button>}
+            {season.phase === "offseason" && <button className="button button--signal" onClick={() => void advancePhase()}><Check size={18} /> Accept offseason package</button>}
+            {season.phase === "between-weekends" && <button className="button button--dark" onClick={() => { if (window.confirm("Simulate every remaining round? Live interventions will be skipped.")) void simulateSeason(); }}><FastForward size={18} /> Finish season</button>}
           </div>
         </div>
         <CircuitMap circuit={circuit} round={next?.round ?? season.weekends.length} />
@@ -37,6 +40,20 @@ export function CommandView() {
         <div><small>Variance</small><strong>{current.randomness.preset}</strong></div>
         <div><small>Mode</small><strong>{current.mode}</strong></div>
       </section>
+
+      {(season.phase === "preseason" || season.phase === "season-complete" || season.phase === "offseason") && <section className="phase-desk">
+        <div className="section-heading"><div><span>Season command</span><h2>Three-phase race control</h2></div><Route /></div>
+        <div className="phase-steps" aria-label="Season phase progression">
+          <div className={season.phase === "preseason" ? "phase-step phase-step--active" : "phase-step phase-step--done"}><b>01</b><span>Preseason</span><small>Set the grid and rules</small></div>
+          <ArrowRight className="phase-arrow" />
+          <div className={season.phase === "season-complete" || season.phase === "offseason" ? "phase-step phase-step--done" : "phase-step"}><b>02</b><span>Season</span><small>Run every weekend</small></div>
+          <ArrowRight className="phase-arrow" />
+          <div className={season.phase === "season-complete" || season.phase === "offseason" ? "phase-step phase-step--active" : "phase-step"}><b>03</b><span>Offseason</span><small>Shape the next campaign</small></div>
+        </div>
+        {season.phase === "preseason" && <p className="phase-note">The season is staged and waiting. Enter the season when your grid and driver potential are ready.</p>}
+        {season.phase === "season-complete" && current.mode === "dynasty" && <p className="phase-note">The final classification is locked. Open the offseason package to review development, rookies, and roster moves before the next season.</p>}
+        {season.phase === "offseason" && season.offseasonProposal && <div className="offseason-package"><div><strong>{season.offseasonProposal.targetSeason} package</strong><small>{season.offseasonProposal.summary}</small></div><div className="offseason-changes">{season.offseasonProposal.ratingChanges.map((change) => { const team = season.teams.find((candidate) => candidate.id === change.teamId); return <div className="offseason-change" key={`${change.teamId}-${change.field}`}><span>{team?.shortName ?? change.teamId} · {change.field}</span><div><button aria-label={`Decrease ${change.field} for ${team?.name ?? change.teamId}`} onClick={() => void editOffseasonRating(change.teamId, change.field, change.delta - 1)}><Minus size={13} /></button><b>{change.delta > 0 ? `+${change.delta}` : change.delta}</b><button aria-label={`Increase ${change.field} for ${team?.name ?? change.teamId}`} onClick={() => void editOffseasonRating(change.teamId, change.field, change.delta + 1)}><Plus size={13} /></button></div></div>; })}</div><small className="phase-note">Adjust each proposed team change before accepting. The package is applied automatically when you accept it.</small></div>}
+      </section>}
 
       <div className="command-grid">
         <section className="standings-snapshot">
