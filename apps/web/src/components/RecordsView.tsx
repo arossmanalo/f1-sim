@@ -4,6 +4,7 @@ import { useSimulator } from "../simulator-context";
 
 type RecordScope = "all" | "simulation" | "reality";
 type RecordCategory = "wdc" | "wcc" | "wins" | "poles" | "podiums";
+type RecordFilter = "all" | RecordCategory;
 type RecordRow = { holder: string; category: RecordCategory; value: number; source: "simulation" | "reality"; rank?: number };
 type DriverTotals = { holder: string; wdc: number; wins: number; poles: number; podiums: number };
 type TeamTotals = { holder: string; wcc: number };
@@ -108,11 +109,15 @@ function rankRows(rows: RecordRow[]): RecordRow[] {
 export function RecordsView() {
   const { universes } = useSimulator();
   const [scope, setScope] = useState<RecordScope>("all");
+  const [selectedCategory, setSelectedCategory] = useState<RecordFilter>("all");
   const simulated = useMemo(() => simulationRows(universes), [universes]);
-  const rows = useMemo(() => rankRows([...(scope === "reality" ? [] : simulated), ...(scope === "simulation" ? [] : realityRows)]), [scope, simulated]);
+  const rows = useMemo(() => {
+    const sourceRows = [...(scope === "reality" ? [] : simulated), ...(scope === "simulation" ? [] : realityRows)];
+    return rankRows(selectedCategory === "all" ? sourceRows : sourceRows.filter((row) => row.category === selectedCategory));
+  }, [scope, selectedCategory, simulated]);
   return <div className="page-stack records-page">
     <header className="page-heading"><span>Championship ledger</span><h1>All-time record book</h1><p>Rank the leading holders for every headline record across your simulated universes and the bundled real-world reference board.</p></header>
-    <div className="records-toolbar" role="group" aria-label="Record source"><label>Show records<select value={scope} onChange={(event) => setScope(event.target.value as RecordScope)}><option value="all">All history</option><option value="simulation">Simulation only</option><option value="reality">Reality only</option></select></label><span><Medal /> One merged ranking per record category.</span></div>
-    <section className="records-board"><div className="section-heading"><div><span>{scope === "all" ? "Merged history" : scope === "simulation" ? "Your universes" : "Bundled reference"}</span><h2>Top record holders</h2></div><Trophy /></div><div className="records-table"><div className="records-row records-row--head"><span>Rank</span><span>Holder</span><span>Record</span><span>Value</span><span>Source</span></div>{rows.map((row) => <div className="records-row" key={`${row.source}-${row.category}-${row.holder}`}><b className="record-rank">{row.rank}</b><strong>{row.holder}</strong><span>{categoryLabels[row.category]}</span><b>{row.value}</b><small>{row.source}</small></div>)}{rows.length === 0 && <p className="empty-note">Complete a dynasty season to start building simulation records.</p>}</div></section>
+    <div className="records-toolbar" role="group" aria-label="Record filters"><label>Show records<select value={scope} onChange={(event) => setScope(event.target.value as RecordScope)}><option value="all">All history</option><option value="simulation">Simulation only</option><option value="reality">Reality only</option></select></label><label>Record type<select value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value as RecordFilter)}><option value="all">All record types</option><option value="wdc">World Drivers' Championships</option><option value="wcc">World Constructors' Championships</option><option value="wins">Race wins</option><option value="poles">Pole positions</option><option value="podiums">Podium finishes</option></select></label><span><Medal /> Rankings merge sources within each selected category.</span></div>
+    <section className="records-board"><div className="section-heading"><div><span>{scope === "all" ? "Merged history" : scope === "simulation" ? "Your universes" : "Bundled reference"}</span><h2>{selectedCategory === "all" ? "Top record holders" : `Top ${categoryLabels[selectedCategory]} holders`}</h2></div><Trophy /></div><div className="records-table"><div className="records-row records-row--head"><span>Rank</span><span>Holder</span><span>Record</span><span>Value</span><span>Source</span></div>{rows.map((row) => <div className="records-row" key={`${row.source}-${row.category}-${row.holder}`}><b className="record-rank">{row.rank}</b><strong>{row.holder}</strong><span>{categoryLabels[row.category]}</span><b>{row.value}</b><small>{row.source}</small></div>)}{rows.length === 0 && <p className="empty-note">Complete a dynasty season to start building simulation records.</p>}</div></section>
   </div>;
 }
