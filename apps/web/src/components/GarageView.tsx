@@ -28,6 +28,8 @@ export function GarageView() {
   const [teamDraft, setTeamDraft] = useState<Record<string, Partial<TeamRatings>>>({});
   const [driverFormOpen, setDriverFormOpen] = useState(false);
   const [driverForm, setDriverForm] = useState<DriverForm>(emptyDriverForm);
+  const [teamFormOpen, setTeamFormOpen] = useState(false);
+  const [teamName, setTeamName] = useState("");
   const [teamId, setTeamId] = useState(current?.season.teams[0]?.id);
   const team = current?.season.teams.find((item) => item.id === teamId) ?? current?.season.teams[0];
   const [driverId, setDriverId] = useState(team?.driverIds[0]);
@@ -54,9 +56,10 @@ export function GarageView() {
       <div className="garage-toolbar">
         <label>Constructor<select value={team.id} onChange={(event) => { setTeamId(event.target.value); const selected = current.season.teams.find((item) => item.id === event.target.value); setDriverId(selected?.driverIds[0]); }}>{current.season.teams.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
         <div className="team-identity"><i style={{ background: team.color }} /><strong>{team.name}</strong><span>{team.shortName}</span></div>
-        <button disabled={!['preseason', 'offseason'].includes(current.season.phase)} onClick={() => { const name = window.prompt("New constructor name"); if (name?.trim()) void addTeam(name.trim()); }}><Plus /> Add team</button>
+        <button disabled={!['preseason', 'offseason'].includes(current.season.phase)} onClick={() => setTeamFormOpen(true)}><Plus /> Add team</button>
         <button className="danger-text" disabled={!['preseason', 'offseason'].includes(current.season.phase)} onClick={() => void confirm({ title: `Withdraw ${team.name}?`, message: "Its drivers will return to the free-agent pool and the constructor will leave this universe.", confirmLabel: "Withdraw team", danger: true }).then((approved) => { if (approved) void removeTeam(team.id); })}><Trash2 /> Withdraw</button>
       </div>
+      {teamFormOpen && <form className="team-form" onSubmit={(event) => { event.preventDefault(); const name = teamName.trim(); if (!name) return; void addTeam(name).then(() => { setTeamName(""); setTeamFormOpen(false); }); }}><label>Constructor name<input autoFocus required value={teamName} onChange={(event) => setTeamName(event.target.value)} /></label><button type="submit" className="button button--signal">Create team</button><button type="button" className="button button--quiet" onClick={() => { setTeamName(""); setTeamFormOpen(false); }}>Cancel</button></form>}
 
       <section className={`workshop-savebar ${pendingCount > 0 ? "workshop-savebar--pending" : ""}`} aria-live="polite">
         <div><strong>{pendingCount > 0 ? `${pendingCount} pending workshop change${pendingCount === 1 ? "" : "s"}` : "All workshop changes applied"}</strong><small>{pendingCount > 0 ? "Review the staged values, then apply them to this universe." : "Values shown here match the saved universe."}</small></div>
