@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AlertCircle, Plus, ShieldCheck, Trash2, Wrench } from "lucide-react";
-import type { DriverRatings, TeamRatings, WorkshopEdits } from "@f1-sim/core";
+import type { DriverRatings, DriverWorkshopValues, TeamRatings, WorkshopEdits } from "@f1-sim/core";
 import { sentence } from "../format";
 import { useSimulator } from "../simulator-context";
 
@@ -21,7 +21,7 @@ function RatingControl({ label, value, disabled, onChange }: { label: string; va
 
 export function GarageView() {
   const { current, addTeam, removeTeam, applyWorkshopEdits } = useSimulator();
-  const [driverDraft, setDriverDraft] = useState<Record<string, Partial<DriverRatings>>>({});
+  const [driverDraft, setDriverDraft] = useState<Record<string, DriverWorkshopValues>>({});
   const [teamDraft, setTeamDraft] = useState<Record<string, Partial<TeamRatings>>>({});
   const [teamId, setTeamId] = useState(current?.season.teams[0]?.id);
   const team = current?.season.teams.find((item) => item.id === teamId) ?? current?.season.teams[0];
@@ -71,7 +71,7 @@ export function GarageView() {
           <div className="section-heading"><div><span>Driver profile</span><h2>{driver.givenName} {driver.familyName}</h2></div><span className="driver-number" style={{ background: team.color, color: contrastText(team.color) }}>{driver.number}</span></div>
           <div className="seat-tabs">{team.driverIds.map((id, index) => { const person = current.season.drivers.find((item) => item.id === id); return <button className={driver.id === id ? "active" : ""} onClick={() => setDriverId(id)} key={id}>Seat {index + 1}<strong>{person?.code}</strong></button>; })}</div>
           <p className="evidence-line"><ShieldCheck /> Age {driver.age} · Potential {driver.potential} · {driver.evidence.method} · {driver.evidence.confidence} confidence</p>
-          <div className="rating-grid">{driverFields.map((field) => <RatingControl key={field} label={field} value={driverDraft[driver.id]?.[field] ?? driver.ratings[field]} disabled={driverLocked} onChange={(value) => setDriverDraft((existing) => ({ ...existing, [driver.id]: { ...existing[driver.id], [field]: value } }))} />)}</div>
+          <div className="rating-grid"><RatingControl label="potential" value={driverDraft[driver.id]?.potential ?? driver.potential} disabled={driverLocked} onChange={(value) => setDriverDraft((existing) => ({ ...existing, [driver.id]: { ...existing[driver.id], potential: value } }))} />{driverFields.map((field) => <RatingControl key={field} label={field} value={driverDraft[driver.id]?.[field] ?? driver.ratings[field]} disabled={driverLocked} onChange={(value) => setDriverDraft((existing) => ({ ...existing, [driver.id]: { ...existing[driver.id], [field]: value } }))} />)}</div>
           {driverLocked && <p className="lock-note"><AlertCircle /> Base driver ratings lock at round one. Form, morale, pressure, and transfers may still evolve.</p>}
         </section>
       </div>
