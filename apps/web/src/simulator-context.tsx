@@ -1,6 +1,7 @@
 import {
   BUILT_IN_PRESETS,
   addCustomTeam,
+  addCustomDriver,
   appendNarrative,
   applyIntervention,
   approveOffseason,
@@ -78,6 +79,7 @@ interface SimulatorContextValue {
   applyWorkshopEdits(edits: WorkshopEdits): Promise<boolean>;
   move(driverId: string, teamId: string, seat: 0 | 1): Promise<void>;
   addTeam(name: string): Promise<void>;
+  addDriver(driver: Driver): Promise<void>;
   removeTeam(teamId: string): Promise<void>;
   createOffseason(): Promise<void>;
   acceptOffseason(): Promise<void>;
@@ -305,6 +307,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
       };
       return addCustomTeam(universe, team, drivers);
     }, `${name} entered the championship.`),
+    addDriver: (driver) => run((universe) => addCustomDriver(universe, driver), `${driver.givenName} ${driver.familyName} joined the free-agent pool.`),
     removeTeam: (teamId) => run((universe) => removeTeam(universe, teamId), "Team withdrawn; its drivers remain in the free-agent pool."),
     createOffseason: () => run(proposeOffseason, "Offseason package generated for review."),
     acceptOffseason: () => run(approveOffseason, "Offseason approved; the next season is ready."),
