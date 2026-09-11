@@ -4,7 +4,7 @@ import { displayName } from "../format";
 import { useSimulator } from "../simulator-context";
 
 export function MarketView() {
-  const { current, move, createOffseason, acceptOffseason } = useSimulator();
+  const { current, move, createOffseason, acceptOffseason, confirm } = useSimulator();
   const [driverId, setDriverId] = useState(current?.season.drivers[0]?.id ?? "");
   const [teamId, setTeamId] = useState(current?.season.teams[0]?.id ?? "");
   const [seat, setSeat] = useState<0 | 1>(1);
@@ -27,7 +27,7 @@ export function MarketView() {
           </select></label>
           <label>Destination<select value={teamId} onChange={(event) => setTeamId(event.target.value)}>{season.teams.map((team) => <option value={team.id} key={team.id}>{team.name}</option>)}</select></label>
           <label>Seat<select value={seat} onChange={(event) => setSeat(Number(event.target.value) as 0 | 1)}><option value={0}>Seat 1</option><option value={1}>Seat 2</option></select></label>
-          <button className="button button--dark" disabled={season.phase === "session"} onClick={() => { if (window.confirm("Commit this driver move at the next weekend boundary?")) void move(driverId, teamId, seat); }}>Commit move</button>
+          <button className="button button--dark" disabled={season.phase === "session"} onClick={() => void confirm({ title: "Commit this driver move?", message: "The transfer will take effect at the next stable weekend boundary.", confirmLabel: "Commit move" }).then((approved) => { if (approved) void move(driverId, teamId, seat); })}>Commit move</button>
         </div>
       </section>
 
