@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { AlertCircle, Plus, ShieldCheck, Trash2, Wrench } from "lucide-react";
-import type { DriverRatings, DriverWorkshopValues, TeamRatings, WorkshopEdits } from "@f1-sim/core";
+import { AlertCircle, Plus, ShieldCheck, Trash2, UserPlus, Wrench } from "lucide-react";
+import type { Driver, DriverRatings, DriverWorkshopValues, TeamRatings, WorkshopEdits } from "@f1-sim/core";
 import { sentence } from "../format";
 import { useSimulator } from "../simulator-context";
 
@@ -19,10 +19,15 @@ function RatingControl({ label, value, disabled, onChange }: { label: string; va
   return <label className="rating-control"><span>{sentence(label)}<strong>{value}</strong></span><input type="range" min="0" max="100" value={value} disabled={disabled} onChange={(event) => onChange(Number(event.target.value))} /></label>;
 }
 
+type DriverForm = { givenName: string; familyName: string; code: string; number: string; nationality: string; age: string; potential: string };
+const emptyDriverForm: DriverForm = { givenName: "", familyName: "", code: "", number: "", nationality: "", age: "21", potential: "78" };
+
 export function GarageView() {
-  const { current, addTeam, removeTeam, applyWorkshopEdits } = useSimulator();
+  const { current, addTeam, addDriver, removeTeam, applyWorkshopEdits } = useSimulator();
   const [driverDraft, setDriverDraft] = useState<Record<string, DriverWorkshopValues>>({});
   const [teamDraft, setTeamDraft] = useState<Record<string, Partial<TeamRatings>>>({});
+  const [driverFormOpen, setDriverFormOpen] = useState(false);
+  const [driverForm, setDriverForm] = useState<DriverForm>(emptyDriverForm);
   const [teamId, setTeamId] = useState(current?.season.teams[0]?.id);
   const team = current?.season.teams.find((item) => item.id === teamId) ?? current?.season.teams[0];
   const [driverId, setDriverId] = useState(team?.driverIds[0]);
@@ -77,6 +82,13 @@ export function GarageView() {
       </div>
 
       <section className="free-agent-strip"><span>Driver registry</span><strong>{current.season.drivers.length}</strong><small>{activeIds.size} active · {current.season.drivers.length - activeIds.size} free agents or reserves</small></section>
+      <section className="driver-registry">
+        <div className="section-heading"><div><span>Free-agent pool</span><h2>Bring in your own driver</h2></div><UserPlus /></div>
+        <p className="section-note">Create a driver with a fully editable potential rating. New drivers enter as free agents and can be assigned from the Driver market.</p>
+        {!driverFormOpen ? <button className="button button--dark" disabled={!['preseason', 'between-weekends', 'offseason'].includes(current.season.phase)} onClick={() => setDriverFormOpen(true)}><Plus /> Add custom driver</button> : <form className="driver-form" onSubmit={(event) => { event.preventDefault(); const givenName = driverForm.givenName.trim(); const familyName = driverForm.familyName.trim(); const code = driverForm.code.trim().toUpperCase(); const number = Number(driverForm.number); const age = Number(driverForm.age); const potential = Number(driverForm.potential); if (!givenName || !familyName || !code || !Number.isInteger(number) || !Number.isInteger(age)) return; const evidence = { source: "Custom entry", method: "User-created driver profile", confidence: "high" as const, updatedAt: new Date().toISOString() }; const ratings: DriverRatings = { qualifyingPace: 70, racePace: 70, tireManagement: 70, overtaking: 70, defending: 70, braking: 70, cornering: 70, wetWeather: 70, consistency: 70, experience: Math.max(20, Math.min(90, age * 2)) }; const driver: Driver = { id: `custom-driver-${Date.now()}`, givenName, familyName, code, number, nationality: driverForm.nationality.trim() || "Custom", age, ratings, potential, form: 50, morale: 50, pressure: 35, evidence }; void addDriver(driver).then(() => { setDriverForm(emptyDriverForm); setDriverFormOpen(false); }); }}>
+          <label>Given name<input required value={driverForm.givenName} onChange={(event) => setDriverForm((form) => ({ ...form, givenName: event.target.value }))} /></label><label>Family name<input required value={driverForm.familyName} onChange={(event) => setDriverForm((form) => ({ ...form, familyName: event.target.value }))} /></label><label>Code<input required maxLength={3} value={driverForm.code} onChange={(event) => setDriverForm((form) => ({ ...form, code: event.target.value }))} /></label><label>Number<input required type="number" min="0" max="999" value={driverForm.number} onChange={(event) => setDriverForm((form) => ({ ...form, number: event.target.value }))} /></label><label>Nationality<input value={driverForm.nationality} onChange={(event) => setDriverForm((form) => ({ ...form, nationality: event.target.value }))} /></label><label>Age<input required type="number" min="16" max="80" value={driverForm.age} onChange={(event) => setDriverForm((form) => ({ ...form, age: event.target.value }))} /></label><label>Potential<input required type="number" min="0" max="100" value={driverForm.potential} onChange={(event) => setDriverForm((form) => ({ ...form, potential: event.target.value }))} /></label><div className="driver-form__actions"><button type="submit" className="button button--signal">Create driver</button><button type="button" className="button button--quiet" onClick={() => { setDriverForm(emptyDriverForm); setDriverFormOpen(false); }}>Cancel</button></div>
+        </form>}
+      </section>
       <section className="rules-ledger"><div className="section-heading"><div><span>Sporting framework</span><h2>{current.season.ruleset.name}</h2></div><span className={current.season.rulesLocked ? "lock-badge" : "open-badge"}>{current.season.rulesLocked ? "Locked" : "Editable preseason"}</span></div><div className="rule-grid"><span><small>Qualifying</small><strong>{current.season.ruleset.qualifyingFormat}</strong></span><span><small>Refueling</small><strong>{current.season.ruleset.refueling ? "Available" : "Prohibited"}</strong></span><span><small>Tire rule</small><strong>{current.season.ruleset.tireChanges}</strong></span><span><small>Constructors’ title</small><strong>{current.season.ruleset.constructorsChampionship ? "Awarded" : "Not awarded"}</strong></span></div></section>
     </div>
   );
