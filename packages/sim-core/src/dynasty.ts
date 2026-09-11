@@ -1,6 +1,6 @@
 import { DeterministicRng, hashSeed } from "./rng";
 import { generateRookies, progressDriverForNextSeason } from "./progression";
-import type { Contract, OffseasonProposal, TeamRatings, Universe } from "./types";
+import type { Contract, OffseasonProposal, TeamPerformanceField, TeamRatings, Universe } from "./types";
 
 function uid(prefix: string): string {
   return `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
@@ -37,6 +37,94 @@ export function editOffseasonRating(input: Universe, teamId: string, field: keyo
   universe.audit.push({ id: uid("audit"), action: "edit-offseason-package", summary: `${teamId}: ${field} offseason change set to ${change.delta}.`, at: new Date().toISOString() });
   universe.updatedAt = new Date().toISOString();
   return universe;
+}
+
+const teamPerformanceFields: TeamPerformanceField[] = ["power", "aerodynamics", "mechanicalGrip", "tirePreservation", "reliability", "pitCrew", "strategy"];
+
+function clampRating(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+/** Rebase every constructor around its prior finishing position for a contestable new season. */
+export function resetTeamRatingsForNextSeason(input: Universe, targetSeason = input.season.year + 1): Universe {
+  const universe = structuredClone(input);
+  const order = [...universe.season.teamStandings].sort((a, b) => b.points - a.points || b.wins - a.wins);
+  const rank = new Map(order.map((standing, index) => [standing.teamId, index]));
+  const denominator = Math.max(1, universe.season.teams.length - 1);
+  const rng = new DeterministicRng(hashSeed(universe.baseSeed, targetSeason, "team-rating-reset"));
+  universe.season.teams.forEach((team) => {
+    const index = rank.get(team.id) ?? universe.season.teams.length - 1;
+    const formTarget = 66 + ((universe.season.teams.length - 1 - index) / denominator) * 20;
+    for (const field of teamPerformanceFields) team.ratings[field] = clampRating(team.ratings[field] * 0.42 + formTarget * 0.58 + rng.between(-2, 2));
+    team.ratings.developmentPotential = clampRating(team.ratings.developmentPotential * 0.55 + (72 + rng.between(-4, 4)) * 0.45);
+  });
+  return universe;
+}
+
+function resolveNextSeasonContracts(universe: Universe, targetSeason: number): { retained: number; signed: number; released: number } {
+  const prior = new Map(universe.season.driverStandings.map((standing) => [standing.driverId, standing]));
+  const ordered = [...universe.season.driverStandings].sort((a, b) => b.points - a.points || b.wins - a.wins);
+  const cutoff = ordered[Math.max(0, Math.floor(ordered.length * 0.6))]?.points ?? 0;
+  const assignments = new Map<string, string>();
+  const retained = new Set<string>();
+  let released = 0;
+  for (const team of universe.season.teams) {
+    for (const driverId of team.driverIds) {
+      const contract = universe.season.contracts.find((candidate) => candidate.driverId === driverId && candidate.teamId === team.id && candidate.status !== "terminated" && candidate.endSeason >= targetSeason);
+      const standing = prior.get(driverId);
+      const keep = Boolean(contract) || Boolean(standing && standing.points >= cutoff);
+      if (keep && !retained.has(driverId)) {
+        retained.add(driverId);
+        assignments.set(driverId, team.id);
+      } else if (!keep) {
+        released += 1;
+      }
+    }
+  }
+
+  const candidates = universe.season.drivers.filter((driver) => !retained.has(driver.id)).sort((a, b) => {
+    const aStanding = prior.get(a.id); const bStanding = prior.get(b.id);
+    const aScore = (aStanding?.points ?? 0) + a.potential * 0.2 + a.ratings.racePace * 0.1;
+    const bScore = (bStanding?.points ?? 0) + b.potential * 0.2 + b.ratings.racePace * 0.1;
+    return bScore - aScore || a.id.localeCompare(b.id);
+  });
+  let signed = 0;
+  for (const team of universe.season.teams) {
+    const slots = team.driverIds.map((driverId) => retained.has(driverId) ? driverId : undefined) as [string | undefined, string | undefined];
+    for (let seat = 0; seat < slots.length; seat += 1) {
+      if (!slots[seat]) {
+        const next = candidates.shift();
+        if (next) {
+          slots[seat] = next.id;
+          retained.add(next.id);
+          assignments.set(next.id, team.id);
+          signed += 1;
+        }
+      }
+    }
+    if (!slots[0] || !slots[1]) throw new Error(`${team.name} could not fill both active seats for ${targetSeason}.`);
+    team.driverIds = [slots[0], slots[1]];
+  }
+
+  for (const contract of universe.season.contracts) {
+    if (contract.endSeason < targetSeason) contract.status = "expired";
+    const assignedTeam = assignments.get(contract.driverId);
+    if (assignedTeam && assignedTeam !== contract.teamId && contract.status === "active") contract.status = "terminated";
+    if (!assignedTeam && contract.status === "active") contract.status = "terminated";
+  }
+  for (const team of universe.season.teams) {
+    team.driverIds.forEach((driverId, seat) => {
+      const existing = universe.season.contracts.find((contract) => contract.driverId === driverId && contract.teamId === team.id && contract.status === "active" && contract.endSeason >= targetSeason);
+      if (existing) return;
+      const driver = universe.season.drivers.find((candidate) => candidate.id === driverId)!;
+      universe.season.contracts.push({
+        id: uid("contract"), driverId, teamId: team.id, salaryCredits: Math.round(((driver.ratings.racePace + driver.ratings.qualifyingPace) / 2) ** 2),
+        startSeason: targetSeason, endSeason: targetSeason + (seat === 0 ? 2 : 1), role: seat === 0 ? "lead" : "equal", optionYears: 1,
+        performanceExitPosition: 12, teamExitPosition: 10, buyoutCredits: Math.round(driver.ratings.racePace * 260), status: "active",
+      });
+    });
+  }
+  return { retained: assignments.size - signed, signed, released };
 }
 
 export function proposeOffseason(input: Universe): Universe {
@@ -82,7 +170,7 @@ export function proposeOffseason(input: Universe): Universe {
 }
 
 export function approveOffseason(input: Universe): Universe {
-  const universe = structuredClone(input);
+  let universe = structuredClone(input);
   const proposal = universe.season.offseasonProposal;
   if (!proposal || proposal.status !== "pending") throw new Error("There is no pending offseason package.");
 
@@ -96,6 +184,7 @@ export function approveOffseason(input: Universe): Universe {
     teamStandings: structuredClone(universe.season.teamStandings),
   }];
 
+  universe = resetTeamRatingsForNextSeason(universe, proposal.targetSeason);
   for (const change of proposal.ratingChanges) {
     const team = universe.season.teams.find((candidate) => candidate.id === change.teamId);
     if (team) team.ratings[change.field] = Math.max(0, Math.min(100, team.ratings[change.field] + change.delta));
@@ -121,9 +210,7 @@ export function approveOffseason(input: Universe): Universe {
   const incomingRookies = proposal.rookies ?? generateRookies(universe, proposal.targetSeason);
   const existingDriverIds = new Set(universe.season.drivers.map((driver) => driver.id));
   universe.season.drivers.push(...incomingRookies.filter((driver) => !existingDriverIds.has(driver.id)));
-  universe.season.contracts.forEach((contract) => {
-    if (contract.endSeason < proposal.targetSeason) contract.status = "expired";
-  });
+  const market = resolveNextSeasonContracts(universe, proposal.targetSeason);
   proposal.status = "approved";
   universe.season.currentRoundIndex = 0;
   universe.season.currentWeekend = undefined;
@@ -134,7 +221,7 @@ export function approveOffseason(input: Universe): Universe {
   universe.season.rulesLocked = false;
   universe.season.offseasonProposal = undefined;
   universe.season.phase = "preseason";
-  universe.audit.push({ id: uid("audit"), action: "approve-offseason", summary: `Approved offseason package for ${proposal.targetSeason}.`, at: new Date().toISOString() });
+  universe.audit.push({ id: uid("audit"), action: "approve-offseason", summary: `Approved offseason package for ${proposal.targetSeason}; retained ${market.retained}, signed ${market.signed}, and released ${market.released} driver${market.released === 1 ? "" : "s"}. Team ratings were rebased around the prior championship order.`, at: new Date().toISOString() });
   universe.updatedAt = new Date().toISOString();
   return universe;
 }
