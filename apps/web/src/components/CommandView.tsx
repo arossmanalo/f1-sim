@@ -46,7 +46,7 @@ export function CommandView() {
         <div className="phase-steps" aria-label="Season phase progression">
           <div className={season.phase === "preseason" ? "phase-step phase-step--active" : "phase-step phase-step--done"}><b>01</b><span>Preseason</span><small>Set the grid and rules</small></div>
           <ArrowRight className="phase-arrow" />
-          <div className={season.phase === "season-complete" || season.phase === "offseason" ? "phase-step phase-step--done" : "phase-step"}><b>02</b><span>Season</span><small>Run every weekend</small></div>
+          <div className={season.phase === "season-complete" || season.phase === "offseason" ? "phase-step phase-step--done" : season.phase === "between-weekends" || season.phase === "session" ? "phase-step phase-step--active" : "phase-step"}><b>02</b><span>Season</span><small>Run every weekend</small></div>
           <ArrowRight className="phase-arrow" />
           <div className={season.phase === "season-complete" || season.phase === "offseason" ? "phase-step phase-step--active" : "phase-step"}><b>03</b><span>Offseason</span><small>Shape the next campaign</small></div>
         </div>
