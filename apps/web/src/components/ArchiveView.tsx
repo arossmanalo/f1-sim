@@ -36,7 +36,7 @@ function SeasonBreakdown({ data, label }: { data: HistorySeason; label: string }
 }
 
 export function ArchiveView() {
-  const { current, voidLast, exportCurrent, removeCurrent } = useSimulator();
+  const { current, voidLast, exportCurrent, removeCurrent, confirm } = useSimulator();
   if (!current) return null;
   const season = current.season;
   const archivedSeasons: HistorySeason[] = (current.seasonHistory ?? []).slice().sort((a, b) => b.year - a.year);
@@ -49,7 +49,7 @@ export function ArchiveView() {
   };
   return <div className="page-stack">
     <header className="page-heading"><span>Immutable record</span><h1>History and audit</h1><p>Open any season and race for its complete classification, gaps, and status. Voided results remain visible so every correction has a trace.</p></header>
-    <div className="archive-actions"><button className="button button--dark" onClick={exportCurrent}><Download /> Export full backup</button><button disabled={season.phase === "session" || season.completedWeekends.every((item) => item.voided)} onClick={() => { if (window.confirm("Void the latest finalized weekend and start its rerun? The original will remain in history.")) void voidLast(); }}><AlertOctagon /> Void latest result</button><button className="danger-text" onClick={() => { if (window.confirm(`Permanently remove ${current.name} from this browser? Export first if you may want it later.`)) void removeCurrent(); }}><Trash2 /> Remove universe</button></div>
+    <div className="archive-actions"><button className="button button--dark" onClick={exportCurrent}><Download /> Export full backup</button><button disabled={season.phase === "session" || season.completedWeekends.every((item) => item.voided)} onClick={() => void confirm({ title: "Void the latest result?", message: "The latest finalized weekend will be rewound to its pre-session checkpoint and the original will remain visible in history.", confirmLabel: "Void result", danger: true }).then((approved) => { if (approved) void voidLast(); })}><AlertOctagon /> Void latest result</button><button className="danger-text" onClick={() => void confirm({ title: "Remove this universe?", message: `Permanently remove ${current.name} from this browser. Export a backup first if you may want it later.`, confirmLabel: "Remove universe", danger: true }).then((approved) => { if (approved) void removeCurrent(); })}><Trash2 /> Remove universe</button></div>
     <div className="archive-layout"><div className="history-seasons"><SeasonBreakdown data={currentHistory} label="Current universe season" />{archivedSeasons.map((archived) => <SeasonBreakdown key={archived.year} data={archived} label="Archived dynasty season" />)}</div><section className="audit-stream"><div className="section-heading"><div><span>Action trail</span><h2>{current.audit.length} committed actions</h2></div><FileClock /></div>{current.audit.slice().reverse().map((entry) => <article key={entry.id}><i /><div><strong>{entry.action.replaceAll("-", " ")}</strong><p>{entry.summary}</p><time>{new Date(entry.at).toLocaleString()}</time></div></article>)}</section></div>
   </div>;
 }
