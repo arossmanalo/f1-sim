@@ -45,7 +45,7 @@ export function LiveView() {
               const team = current.season.teams.find((item) => item.id === car.teamId);
               const tireInitial = car.tire.slice(0, 1).toUpperCase();
               return <button key={car.driverId} className={`timing-row ${selectedDriverId === car.driverId ? "timing-row--selected" : ""} ${car.status !== "running" && car.status !== "finished" ? "timing-row--out" : ""}`} onClick={() => setDriverId(car.driverId)}>
-                <b>{car.position}</b><span className="timing-driver" style={{ borderLeftColor: team?.color }}><strong>{driver?.code}</strong><small>{driver?.familyName}</small></span><span>{car.status === "dnf" ? "OUT" : formatGap(car.gapMs, index === 0)}</span><span className={`tire tire--${tireInitial.toLowerCase()}`}>{tireInitial}<small>{car.tireAge}</small></span>
+                <b style={{ color: team?.color }}>{car.position}</b><span className="timing-driver" style={{ borderLeftColor: team?.color }}><strong>{driver?.code}</strong><small>{driver?.familyName}</small></span><span>{car.status === "dnf" ? "OUT" : formatGap(car.gapMs, index === 0)}</span><span className={`tire tire--${tireInitial.toLowerCase()}`}>{tireInitial}<small>{car.tireAge}</small></span>
               </button>;
             })}
           </div>
