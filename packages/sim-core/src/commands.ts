@@ -111,6 +111,25 @@ export function addCustomTeam(input: Universe, team: Team, drivers: [Driver, Dri
   return universe;
 }
 
+/** Add an editable free-agent driver without assigning a seat immediately. */
+export function addCustomDriver(input: Universe, driver: Driver): Universe {
+  const universe = structuredClone(input);
+  boundaryOnly(universe, "Add driver");
+  if (universe.season.drivers.some((candidate) => candidate.id === driver.id)) throw new Error("That driver ID already exists.");
+  if (universe.season.drivers.some((candidate) => candidate.code.toLocaleLowerCase() === driver.code.toLocaleLowerCase())) throw new Error("That driver code already exists.");
+  if (universe.season.drivers.some((candidate) => candidate.number === driver.number)) throw new Error("That driver number is already in use.");
+  const clean = structuredClone(driver);
+  clean.potential = Math.max(0, Math.min(100, Math.round(clean.potential)));
+  for (const value of Object.values(clean.ratings)) {
+    if (!Number.isFinite(value) || value < 0 || value > 100) throw new Error("Driver ratings must be between 0 and 100.");
+  }
+  universe.season.drivers.push(clean);
+  universe.season.driverStandings.push({ driverId: clean.id, points: 0, wins: 0, podiums: 0, poles: 0, finishes: {} });
+  universe.audit.push({ id: uid("audit"), action: "add-driver", summary: `${clean.givenName} ${clean.familyName} joined the free-agent pool.`, at: new Date().toISOString() });
+  universe.updatedAt = new Date().toISOString();
+  return universe;
+}
+
 export function removeTeam(input: Universe, teamId: string): Universe {
   const universe = structuredClone(input);
   if (!['preseason', 'offseason'].includes(universe.season.phase)) throw new Error("Teams may withdraw only before a season or during an offseason.");
