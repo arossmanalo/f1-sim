@@ -97,6 +97,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: rgb(10 15 20 / 74%); backdrop-filter: blur(6px); }
 .modal-sheet { position: relative; width: min(1060px, 100%); max-height: calc(100vh - 48px); overflow: auto; }
 .modal-close { position: absolute; z-index: 2; top: 13px; right: 13px; width: 39px; height: 39px; display: grid; place-items: center; color: white; background: #25303a; border: 1px solid #4c5862; cursor: pointer; }
+.confirm-backdrop { z-index: 120; }.confirm-dialog { width: min(440px, 100%); padding: 28px; color: var(--ink); background: var(--paper-bright); border-top: 5px solid var(--yellow); box-shadow: 10px 10px 0 rgb(0 0 0 / 28%); }.confirm-dialog__mark { width: 30px; height: 30px; display: grid; place-items: center; color: white; background: var(--yellow); font: 800 18px var(--display); transform: skewX(-8deg); }.confirm-dialog h2 { margin: 17px 0 8px; font: 800 27px/1 var(--display); }.confirm-dialog p { margin: 0; color: #62707a; line-height: 1.5; }.confirm-dialog__actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 24px; }.button--danger { color: white; background: #9e1f27; border-color: #7d1820; }
 
 .page-stack, .command-view { display: grid; gap: 24px; max-width: 1480px; margin: 0 auto; }
 .page-heading { position: relative; padding: 8px 0 22px 20px; border-left: 4px solid var(--yellow); }
