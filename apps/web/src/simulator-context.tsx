@@ -40,7 +40,7 @@ import { generateNarrative, getHealth, refreshCurrentData, type ServiceHealth } 
 import { db, deleteUniverse, lastUniverseId, loadUniverses, saveUniverse } from "./db";
 import { buildNarrativeStoryContext } from "./story-context";
 
-export type AppView = "command" | "live" | "standings" | "garage" | "market" | "paddock" | "archive" | "compare";
+export type AppView = "home" | "command" | "live" | "standings" | "garage" | "market" | "paddock" | "archive" | "records" | "compare";
 
 interface CreateOptions {
   preset: SeasonPreset;
@@ -91,7 +91,7 @@ const SimulatorContext = createContext<SimulatorContextValue | undefined>(undefi
 export function SimulatorProvider({ children }: { children: ReactNode }) {
   const [universes, setUniverses] = useState<Universe[]>([]);
   const [currentId, setCurrentId] = useState<string>();
-  const [view, setView] = useState<AppView>("command");
+  const [view, setView] = useState<AppView>("home");
   const [loading, setLoading] = useState(true);
   const [health, setHealth] = useState<ServiceHealth>();
   const [narrationStatus, setNarrationStatus] = useState<"idle" | "preparing" | "generating">("idle");
@@ -137,10 +137,15 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
   }, [commit, current]);
 
   const create = useCallback(async (options: CreateOptions) => {
-    const universe = createUniverse(options.preset, options);
+    const requestedName = options.name.trim() || `${options.preset.year} season`;
+    const existingNames = new Set(universes.map((universe) => universe.name.toLocaleLowerCase()));
+    let uniqueName = requestedName;
+    let suffix = 2;
+    while (existingNames.has(uniqueName.toLocaleLowerCase())) uniqueName = `${requestedName} (${suffix++})`;
+    const universe = createUniverse(options.preset, { ...options, name: uniqueName });
     await commit(universe, `${universe.name} is ready in the garage.`);
     setView("command");
-  }, [commit]);
+  }, [commit, universes]);
 
   const removeCurrent = useCallback(async () => {
     if (!current) return;

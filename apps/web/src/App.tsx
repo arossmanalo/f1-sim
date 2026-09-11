@@ -10,6 +10,8 @@ import {
   Flag,
   Gauge,
   GitFork,
+  Home,
+  Medal,
   Menu,
   Radio,
   Settings2,
@@ -28,8 +30,11 @@ import { MarketView } from "./components/MarketView";
 import { PaddockView } from "./components/PaddockView";
 import { ArchiveView } from "./components/ArchiveView";
 import { CompareView } from "./components/CompareView";
+import { HomeView } from "./components/HomeView";
+import { RecordsView } from "./components/RecordsView";
 
 const navigation: Array<{ id: AppView; label: string; icon: typeof Gauge }> = [
+  { id: "home", label: "Home", icon: Home },
   { id: "command", label: "Season command", icon: CircleGauge },
   { id: "live", label: "Live weekend", icon: Radio },
   { id: "standings", label: "Standings", icon: Trophy },
@@ -37,6 +42,7 @@ const navigation: Array<{ id: AppView; label: string; icon: typeof Gauge }> = [
   { id: "market", label: "Driver market", icon: Users },
   { id: "paddock", label: "Paddock feed", icon: BookOpenText },
   { id: "archive", label: "History & audit", icon: Archive },
+  { id: "records", label: "Records", icon: Medal },
   { id: "compare", label: "Compare reality", icon: GitFork },
 ];
 
@@ -46,9 +52,10 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   if (loading) return <div className="boot-screen"><img className="boot-mark" src="/f1-logo.png" alt="Formula 1" /><p>Preparing race control…</p></div>;
-  if (!current) return <main className="empty-app"><SeasonSetup /></main>;
+  if (!current) return <><main className="empty-app"><HomeView onNew={() => setNewOpen(true)} /></main>{newOpen && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create a universe"><div className="modal-sheet"><button className="modal-close" aria-label="Close" onClick={() => setNewOpen(false)}><X /></button><SeasonSetup compact onDone={() => setNewOpen(false)} /></div></div>}</>;
 
   const View = {
+    home: HomeView,
     command: CommandView,
     live: LiveView,
     standings: StandingsView,
@@ -56,6 +63,7 @@ export function App() {
     market: MarketView,
     paddock: PaddockView,
     archive: ArchiveView,
+    records: RecordsView,
     compare: CompareView,
   }[view];
 
@@ -89,7 +97,7 @@ export function App() {
           <div className="topbar-meta"><span>{current.season.year}</span><span>Round {Math.min(current.season.currentRoundIndex + 1, current.season.weekends.length)} / {current.season.weekends.length}</span><span className="autosave"><ShieldCheck size={15} /> Autosaved</span></div>
         </header>
         {notice && <div className={`notice notice--${notice.tone}`}>{notice.tone === "error" ? <CloudOff size={17} /> : <Activity size={17} />}{notice.text}</div>}
-        <main className={`main-view main-view--${view}`}><View /></main>
+        <main className={`main-view main-view--${view}`}><View {...(view === "home" ? { onNew: () => setNewOpen(true) } : {})} /></main>
       </div>
 
       {newOpen && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create a universe"><div className="modal-sheet"><button className="modal-close" aria-label="Close" onClick={() => setNewOpen(false)}><X /></button><SeasonSetup compact onDone={() => setNewOpen(false)} /></div></div>}
