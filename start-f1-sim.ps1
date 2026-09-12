@@ -45,7 +45,7 @@ if (-not (Test-Path -LiteralPath 'node_modules')) {
 }
 
 Write-Host 'Building F1 SIM...'
-Invoke-PackageManager @('build')
+Invoke-PackageManager @('-r', 'build')
 
 $port = 4173
 if (Test-Path -LiteralPath '.env') {
