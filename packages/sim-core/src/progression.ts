@@ -51,7 +51,11 @@ function ratingAverage(driver: Driver): number {
  * The stored TeamUpgrade is the audit-friendly source for the story layer.
  */
 export function applyInSeasonDevelopment(input: Universe): Universe {
-  const universe = structuredClone(input);
+  return applyInSeasonDevelopmentInPlace(structuredClone(input));
+}
+
+/** Apply the deterministic package to an already-cloned universe. */
+export function applyInSeasonDevelopmentInPlace(universe: Universe): Universe {
   if (universe.season.phase !== "between-weekends") return universe;
   const nextRound = universe.season.currentRoundIndex + 1;
   if (nextRound > universe.season.weekends.length) return universe;

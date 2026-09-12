@@ -1,5 +1,5 @@
-import { evolveTeamsForNextSeason } from "./team-development";
-import { resolveAutonomousContractMarket } from "./contract-market";
+import { evolveTeamsForNextSeasonInPlace } from "./team-development";
+import { resolveAutonomousContractMarketInPlace } from "./contract-market";
 import { advanceJuniorEcosystem, developDriverCareer, evaluateRetirement } from "./career";
 import { fastForwardSeason } from "./engine";
 import { normalizeUniverse } from "./migrations";
@@ -136,19 +136,27 @@ function resetSeason(universe: NormalizedUniverse, targetSeason: number): void {
 
 /** Complete a dynasty offseason without requiring a manual proposal approval. */
 export function runAutonomousOffseason(input: Universe): NormalizedUniverse {
-  let universe = normalizeUniverse(input);
+  return runAutonomousOffseasonInPlace(normalizeUniverse(input));
+}
+
+/** Complete an offseason on a working normalized universe. */
+export function runAutonomousOffseasonInPlace(input: NormalizedUniverse): NormalizedUniverse {
+  let universe = input;
   if (universe.mode !== "dynasty" || universe.season.phase !== "season-complete") throw new Error("Autonomous offseason requires a completed dynasty season.");
   updateCareerStats(universe);
   const archive = archiveSeason(universe);
+  // The working universe may share this array with the previous immutable
+  // checkpoint. Copy just the container before appending the new archive.
+  universe.seasonHistory = [...universe.seasonHistory];
   universe.seasonHistory.push(archive);
   const targetSeason = universe.season.year + 1;
   progressDrivers(universe, targetSeason);
-  universe = evolveTeamsForNextSeason(universe, targetSeason).universe;
+  universe = evolveTeamsForNextSeasonInPlace(universe, targetSeason).universe;
   const juniors = advanceJuniorEcosystem({ seed: universe.baseSeed, season: universe.season.year, config: universe.worldConfig, drivers: universe.season.drivers, teams: universe.season.teams, juniorState: universe.juniorState });
   universe.season.drivers = juniors.drivers;
   universe.juniorState = juniors.juniorState;
   for (const summary of juniors.events) universe.managementEvents.push({ id: `management-junior-${targetSeason}-${universe.managementEvents.length}`, season: targetSeason, type: summary.includes("academy") ? "promotion" : "development", summary, driverIds: [], teamIds: [], createdAt: timestamp(targetSeason, universe.managementEvents.length) });
-  const market = resolveAutonomousContractMarket(universe, targetSeason);
+  const market = resolveAutonomousContractMarketInPlace(universe, targetSeason);
   universe = market.universe;
   resetSeason(universe, targetSeason);
   universe.audit.push({ id: `audit-autonomous-offseason-${targetSeason}`, action: "autonomous-offseason", summary: `Completed autonomous offseason for ${targetSeason}: ${market.summary.renewed.length} renewals, ${market.summary.signed.length} signings, ${juniors.promotedToF2DriverIds.length} junior promotions, and ${juniors.incomingDriverIds.length} new prospects.`, at: timestamp(targetSeason, universe.audit.length) });
@@ -162,8 +170,7 @@ export function simulateAutonomousSeasons(input: Universe, seasons = 1): Normali
   const count = Math.max(0, Math.floor(seasons));
   for (let index = 0; index < count; index += 1) {
     if (universe.season.phase !== "season-complete") universe = normalizeUniverse(fastForwardSeason(universe));
-    universe = runAutonomousOffseason(universe);
+    universe = runAutonomousOffseasonInPlace(universe);
   }
   return universe;
 }
-

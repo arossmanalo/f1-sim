@@ -21,7 +21,7 @@ import type {
   NormalizedUniverse,
 } from "./types";
 import { validatePreset } from "./validation";
-import { applyInSeasonDevelopment } from "./progression";
+import { applyInSeasonDevelopment, applyInSeasonDevelopmentInPlace } from "./progression";
 import { normalizeUniverse } from "./migrations";
 import { recalculateSeasonPerformance, recalculateSeasonPerformanceInPlace } from "./performance";
 
@@ -37,7 +37,66 @@ const DEFAULT_RANDOMNESS: RandomnessSettings = {
 const WEATHER_SEQUENCE: Weather[] = ["clear", "cloudy", "drizzle", "rain", "storm"];
 
 function clone<T>(value: T): T {
+  if (isUniverse(value)) return cloneUniverse(value) as T;
   return structuredClone(value);
+}
+
+function isUniverse(value: unknown): value is Universe {
+  return typeof value === "object" && value !== null && "season" in value && "audit" in value && "narratives" in value;
+}
+
+/**
+ * Clone only the mutable current-season surface. Completed weekends,
+ * season-history archives, and prior performance reviews are immutable while
+ * a race is being simulated, so sharing those subtrees avoids copying tens of
+ * thousands of event objects on every lap/finish command. Commands that can
+ * edit a historical result replace the affected array entry before mutating
+ * it (see voidLastWeekend).
+ */
+function cloneUniverse(input: Universe): Universe {
+  const season = input.season;
+  return {
+    ...input,
+    randomness: { ...input.randomness },
+    season: {
+      ...season,
+      ruleset: { ...season.ruleset, points: season.ruleset.points.map((rule) => ({ ...rule })), sprintPoints: season.ruleset.sprintPoints.map((rule) => ({ ...rule })) },
+      drivers: season.drivers.map((driver) => ({
+        ...driver,
+        ratings: { ...driver.ratings },
+        advancedRatings: driver.advancedRatings ? { ...driver.advancedRatings } : undefined,
+        personality: driver.personality ? { ...driver.personality } : undefined,
+        careerStats: driver.careerStats ? { ...driver.careerStats, teamIds: [...driver.careerStats.teamIds] } : undefined,
+        injury: driver.injury ? { ...driver.injury } : undefined,
+        evidence: { ...driver.evidence },
+      })),
+      teams: season.teams.map((team) => ({
+        ...team,
+        driverIds: [...team.driverIds] as [string, string],
+        ratings: { ...team.ratings },
+        driverConfidence: team.driverConfidence ? { ...team.driverConfidence } : undefined,
+        careerStats: team.careerStats ? { ...team.careerStats, seasonResults: team.careerStats.seasonResults.map((result) => ({ ...result })) } : undefined,
+        evidence: { ...team.evidence },
+      })),
+      circuits: season.circuits.map((circuit) => ({ ...circuit, profile: { ...circuit.profile }, evidence: { ...circuit.evidence } })),
+      weekends: season.weekends.map((weekend) => ({ ...weekend })),
+      contracts: season.contracts.map((contract) => ({ ...contract })),
+      completedWeekends: season.completedWeekends.slice(),
+      driverStandings: season.driverStandings.map((standing) => ({ ...standing, finishes: { ...standing.finishes } })),
+      teamStandings: season.teamStandings.map((standing) => ({ ...standing })),
+      teamUpgrades: season.teamUpgrades?.map((upgrade) => ({ ...upgrade })),
+      currentWeekend: season.currentWeekend ? structuredClone(season.currentWeekend) : undefined,
+      performance: season.performance,
+      offseasonProposal: season.offseasonProposal ? structuredClone(season.offseasonProposal) : undefined,
+    },
+    audit: input.audit.slice(),
+    narratives: input.narratives.slice(),
+    seasonHistory: input.seasonHistory,
+    worldConfig: input.worldConfig,
+    juniorState: input.juniorState,
+    aiDecisions: input.aiDecisions?.slice(),
+    managementEvents: input.managementEvents?.slice(),
+  };
 }
 
 function uid(prefix: string): string {
@@ -560,7 +619,7 @@ export function finalizeWeekend(input: Universe): Universe {
   universe.season.currentRoundIndex += 1;
   universe.season.currentWeekend = undefined;
   universe.season.phase = universe.season.currentRoundIndex >= universe.season.weekends.length ? "season-complete" : "between-weekends";
-  if (universe.season.phase !== "season-complete") universe = applyInSeasonDevelopment(universe);
+  if (universe.season.phase !== "season-complete") universe = applyInSeasonDevelopmentInPlace(universe);
   const activeDriverIds = universe.season.teams.flatMap((team) => team.driverIds);
   const rebuilt = rebuildStandings(
     activeDriverIds,
@@ -580,9 +639,15 @@ export function finalizeWeekend(input: Universe): Universe {
 export function voidLastWeekend(input: Universe): Universe {
   let universe = clone(input);
   if (universe.season.currentWeekend) throw new Error("Cannot void a result while another weekend is active.");
-  const last = [...universe.season.completedWeekends].reverse().find((weekend) => !weekend.voided);
-  if (!last) throw new Error("There is no finalized weekend to void.");
-  last.voided = true;
+  const lastIndex = [...universe.season.completedWeekends]
+    .map((weekend, index) => ({ weekend, index }))
+    .reverse()
+    .find((entry) => !entry.weekend.voided)?.index;
+  if (lastIndex === undefined) throw new Error("There is no finalized weekend to void.");
+  const last = universe.season.completedWeekends[lastIndex]!;
+  // cloneUniverse intentionally shares completed weekend snapshots. Replace
+  // the one being voided before changing it so callers retain immutability.
+  universe.season.completedWeekends[lastIndex] = { ...last, voided: true };
   universe.season.currentRoundIndex = last.weekend.round - 1;
   universe.season.phase = universe.season.currentRoundIndex === 0 ? "preseason" : "between-weekends";
   // A voided result rewinds the deterministic checkpoint before that weekend.

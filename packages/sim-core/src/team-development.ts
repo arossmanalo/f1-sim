@@ -59,7 +59,15 @@ export function evolveTeamsForNextSeason(input: Universe, targetSeason = input.s
   universe: NormalizedUniverse;
   outcomes: TeamDevelopmentOutcome[];
 } {
-  const universe = normalizeUniverse(input);
+  return evolveTeamsForNextSeasonInPlace(normalizeUniverse(input), targetSeason);
+}
+
+/** Evolve an already-normalized universe without cloning its historical archive. */
+export function evolveTeamsForNextSeasonInPlace(input: NormalizedUniverse, targetSeason = input.season.year + 1): {
+  universe: NormalizedUniverse;
+  outcomes: TeamDevelopmentOutcome[];
+} {
+  const universe = input;
   const standings = [...universe.season.teamStandings].sort(
     (a, b) => b.points - a.points || b.wins - a.wins || a.teamId.localeCompare(b.teamId),
   );

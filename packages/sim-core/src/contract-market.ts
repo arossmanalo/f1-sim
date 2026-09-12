@@ -136,7 +136,12 @@ function addContract(universe: NormalizedUniverse, driver: NormalizedDriver, tea
  * final fallback still fills every team to exactly two active cars.
  */
 export function resolveAutonomousContractMarket(input: Universe, targetSeason = input.season.year + 1): { universe: NormalizedUniverse; summary: MarketResolutionSummary } {
-  const universe = normalizeUniverse(input);
+  return resolveAutonomousContractMarketInPlace(normalizeUniverse(input), targetSeason);
+}
+
+/** Resolve the market on a working universe without recloning season history. */
+export function resolveAutonomousContractMarketInPlace(input: NormalizedUniverse, targetSeason = input.season.year + 1): { universe: NormalizedUniverse; summary: MarketResolutionSummary } {
+  const universe = input;
   const assigned = new Set<string>();
   const assignments = new Map<string, string>();
   const summary: MarketResolutionSummary = { targetSeason, renewed: [], signed: [], released: [], declined: [] };
