@@ -45,7 +45,14 @@ function clampRating(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-/** Rebase every constructor around its prior finishing position for a contestable new season. */
+/**
+ * Rebase every constructor around its prior finishing position for a
+ * contestable new season.  A regulation reset deliberately compresses the
+ * field into a narrow performance band: the champion gives back some of its
+ * advantage while lower teams receive a catch-up target.  Development
+ * potential remains persistent, but it is also pulled toward an era baseline
+ * so a single run of perfect upgrades cannot make a team unbeatable forever.
+ */
 export function resetTeamRatingsForNextSeason(input: Universe, targetSeason = input.season.year + 1): Universe {
   const universe = structuredClone(input);
   const order = [...universe.season.teamStandings].sort((a, b) => b.points - a.points || b.wins - a.wins);
@@ -54,9 +61,22 @@ export function resetTeamRatingsForNextSeason(input: Universe, targetSeason = in
   const rng = new DeterministicRng(hashSeed(universe.baseSeed, targetSeason, "team-rating-reset"));
   universe.season.teams.forEach((team) => {
     const index = rank.get(team.id) ?? universe.season.teams.length - 1;
-    const formTarget = 66 + ((universe.season.teams.length - 1 - index) / denominator) * 20;
-    for (const field of teamPerformanceFields) team.ratings[field] = clampRating(team.ratings[field] * 0.42 + formTarget * 0.58 + rng.between(-2, 2));
-    team.ratings.developmentPotential = clampRating(team.ratings.developmentPotential * 0.55 + (72 + rng.between(-4, 4)) * 0.45);
+    const catchUp = (universe.season.teams.length - 1 - index) / denominator;
+    // The worst team starts only a few points above the champion.  The small
+    // inverted rank bias creates a genuine route to the title without making
+    // the previous order irrelevant, while the seeded swing allows either end
+    // of the grid to over- or under-perform in a particular season.
+    const formTarget = 82 + (0.5 - catchUp) * 7;
+    for (const field of teamPerformanceFields) {
+      // Compress the previous rating before blending.  A 100-rated car and a
+      // 20-rated car should both enter the new regulation cycle near the
+      // competitive band, while the prior order still contributes a little
+      // momentum.
+      const compressedPrior = 72 + (team.ratings[field] - 72) * 0.2;
+      team.ratings[field] = clampRating(compressedPrior * 0.18 + formTarget * 0.82 + rng.between(-3.5, 3.5));
+    }
+    const potentialTarget = 70 + catchUp * 10;
+    team.ratings.developmentPotential = clampRating(team.ratings.developmentPotential * 0.55 + (potentialTarget + rng.between(-3, 3)) * 0.45);
   });
   return universe;
 }

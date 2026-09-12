@@ -36,6 +36,24 @@ describe("dynasty progression", () => {
     expect(withDriver.season.teams.every((team) => !team.driverIds.includes(custom.id))).toBe(true);
   });
 
+  it("compresses the team field so a bottom constructor can catch the champion", () => {
+    const universe = createUniverse(PRESET_2005, { seed: 808 });
+    const [champion, last] = [universe.season.teams[0]!, universe.season.teams.at(-1)!];
+    universe.season.teamStandings = universe.season.teams.map((team) => ({
+      teamId: team.id,
+      points: team.id === champion.id ? 300 : team.id === last.id ? 0 : 100,
+      wins: team.id === champion.id ? 10 : 0,
+    }));
+    champion.ratings.power = 100;
+    last.ratings.power = 20;
+    const reset = resetTeamRatingsForNextSeason(universe, 2006);
+    const resetChampion = reset.season.teams.find((team) => team.id === champion.id)!;
+    const resetLast = reset.season.teams.find((team) => team.id === last.id)!;
+    expect(resetLast.ratings.power).toBeGreaterThan(resetChampion.ratings.power - 2);
+    const powerValues = reset.season.teams.map((team) => team.ratings.power);
+    expect(Math.max(...powerValues) - Math.min(...powerValues)).toBeLessThanOrEqual(18);
+  });
+
   it("pauses for an offseason package and starts the approved next season cleanly", () => {
     const preset = structuredClone(PRESET_2005);
     preset.weekends = [preset.weekends[0]!];
