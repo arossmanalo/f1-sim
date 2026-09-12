@@ -9,6 +9,7 @@ import {
   createUniverse,
   exportUniverse,
   fastForwardSeason,
+  simulateAutonomousSeasons as runAutonomousSeasons,
   finalizeWeekend,
   finishSession,
   forkUniverse,
@@ -84,6 +85,7 @@ interface SimulatorContextValue {
   finish(): Promise<void>;
   finalize(): Promise<void>;
   simulateSeason(): Promise<void>;
+  simulateAutonomousSeasons(seasons: number): Promise<void>;
   intervene(kind: InterventionKind, driverId: string | undefined, value: string | number | undefined, note: string): Promise<void>;
   branch(): Promise<void>;
   voidLast(): Promise<void>;
@@ -301,6 +303,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     finish: () => run(finishSession, "Chequered flag. Review the result before finalizing."),
     finalize: () => run(finalizeWeekend, "Weekend finalized and standings updated."),
     simulateSeason: () => run(fastForwardSeason, "Season simulated to completion."),
+    simulateAutonomousSeasons: (seasons) => run((universe) => runAutonomousSeasons(universe, seasons), `${Math.max(1, Math.floor(seasons))} autonomous seasons completed.`),
     intervene: (kind, driverId, interventionValue, note) => run((universe) => applyIntervention(universe, { kind, driverId, value: interventionValue, note }), "Intervention committed. It cannot be undone."),
     branch: async () => { if (current) await commit(forkUniverse(current), "A new universe branch was created at this weekend boundary."); },
     voidLast: () => run(voidLastWeekend, "Previous result voided; a deterministic rerun has started."),
