@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRESET_2005, PRESET_2026, addCustomDriver, advanceSeasonPhase, approveOffseason, applyInSeasonDevelopment, createUniverse, editOffseasonRating, fastForwardSeason, moveDriver, proposeOffseason, resetTeamRatingsForNextSeason, validatePreset } from "./index";
+import { PRESET_2005, PRESET_2026, DeterministicRng, addCustomDriver, advanceSeasonPhase, approveOffseason, applyInSeasonDevelopment, createUniverse, editOffseasonRating, fastForwardSeason, moveDriver, progressDriverForNextSeason, proposeOffseason, resetTeamRatingsForNextSeason, validatePreset } from "./index";
 
 describe("dynasty progression", () => {
   it("advances through preseason, season, and an editable offseason package", () => {
@@ -103,5 +103,25 @@ describe("dynasty progression", () => {
     expect(evolved.ratings.racePace).not.toBe(startingPace);
     expect(universe.seasonHistory).toHaveLength(10);
     expect(universe.season.drivers.filter((driver) => driver.evidence.source === "Generated rookie pool").length).toBeGreaterThanOrEqual(20);
+  });
+
+  it("uses potential for young-driver growth and age for veteran decline", () => {
+    const young = structuredClone(PRESET_2026.drivers[0]!);
+    young.age = 20;
+    young.potential = 99;
+    young.ratings.racePace = 60;
+    const lowCeiling = structuredClone(young);
+    lowCeiling.potential = 64;
+    const developed = progressDriverForNextSeason(young, new DeterministicRng(1234));
+    const limited = progressDriverForNextSeason(lowCeiling, new DeterministicRng(1234));
+    expect(developed.ratings.racePace).toBeGreaterThan(limited.ratings.racePace);
+
+    const veteran = structuredClone(PRESET_2026.drivers.find((driver) => driver.code === "HAM")!);
+    veteran.age = 40;
+    veteran.potential = 99;
+    const before = veteran.ratings.racePace;
+    const declined = progressDriverForNextSeason(veteran, new DeterministicRng(1234));
+    expect(declined.age).toBe(41);
+    expect(declined.ratings.racePace).toBeLessThan(before);
   });
 });

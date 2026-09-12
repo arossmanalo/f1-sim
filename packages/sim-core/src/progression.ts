@@ -89,7 +89,15 @@ export function applyInSeasonDevelopment(input: Universe): Universe {
   return universe;
 }
 
-/** Progress a driver into the next season using age, potential, and form. */
+/**
+ * Progress a driver into the next season using age, potential, and form.
+ *
+ * Potential is an upside ceiling, not a second rating that blindly increases
+ * every year.  Drivers well below that ceiling get a stronger development
+ * pull while they are young; the age curve eventually dominates and creates a
+ * visible decline for veterans.  Keeping this here (rather than in the race
+ * engine) means the same seeded career arc is used by every weekend mode.
+ */
 export function progressDriverForNextSeason(driver: Driver, rng: DeterministicRng, developmentVariance = 1): Driver {
   const next = structuredClone(driver);
   const previousRatings = structuredClone(next.ratings);
@@ -97,22 +105,28 @@ export function progressDriverForNextSeason(driver: Driver, rng: DeterministicRn
   const average = ratingAverage(next);
   const potentialGap = next.potential - average;
   let ageEffect: number;
-  if (next.age <= 22) ageEffect = 0.8;
-  else if (next.age <= 27) ageEffect = 0.45;
-  else if (next.age <= 32) ageEffect = 0.12;
-  else if (next.age <= 36) ageEffect = -0.35;
-  else if (next.age <= 40) ageEffect = -0.7;
-  else ageEffect = -1.35 - (next.age - 40) * 0.08;
+  if (next.age <= 21) ageEffect = 1.45;
+  else if (next.age <= 25) ageEffect = 0.95;
+  else if (next.age <= 29) ageEffect = 0.42;
+  else if (next.age <= 32) ageEffect = 0.08;
+  else if (next.age <= 35) ageEffect = -0.48;
+  else if (next.age <= 39) ageEffect = -1.1;
+  else if (next.age <= 42) ageEffect = -1.85;
+  else ageEffect = -2.45 - (next.age - 42) * 0.16;
 
   driverFields.forEach((field, index) => {
-    const potentialWeight = field === "experience" ? 0.02 : 0.055;
+    // Experience is learned slowly; the other attributes respond more to
+    // untapped potential.  Older drivers retain a small potential effect, but
+    // it cannot cancel the age-related decline.
+    const potentialWeight = field === "experience" ? 0.018 : (next.age <= 32 ? 0.07 : 0.028);
     const correlated = potentialGap * potentialWeight + ageEffect;
-    const noise = rng.between(-1.05, 1.05) * developmentVariance;
-    const specialization = index % 3 === 0 ? (next.form - 50) * 0.008 : 0;
+    const noise = rng.between(-0.72, 0.72) * developmentVariance;
+    const specialization = index % 3 === 0 ? (next.form - 50) * 0.012 : 0;
     next.ratings[field] = clamp(next.ratings[field] + correlated + noise + specialization);
   });
-  if (next.age < 36) next.ratings.experience = clamp(next.ratings.experience + 1 + (next.age < 28 ? 1 : 0));
-  else if (next.age > 42) next.ratings.experience = clamp(next.ratings.experience - 1);
+  if (next.age < 30) next.ratings.experience = clamp(next.ratings.experience + 1 + (next.age < 24 ? 1 : 0));
+  else if (next.age < 36) next.ratings.experience = clamp(next.ratings.experience + 1);
+  else if (next.age > 42) next.ratings.experience = clamp(next.ratings.experience - 2);
   if (driverFields.every((field) => next.ratings[field] === previousRatings[field])) {
     next.ratings.racePace = clamp(next.ratings.racePace + (ageEffect >= 0 ? 1 : -1));
   }
