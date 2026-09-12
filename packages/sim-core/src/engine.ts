@@ -22,6 +22,7 @@ import type {
 import { validatePreset } from "./validation";
 import { applyInSeasonDevelopment } from "./progression";
 import { normalizeUniverse } from "./migrations";
+import { recalculateSeasonPerformance } from "./performance";
 
 const DEFAULT_RANDOMNESS: RandomnessSettings = {
   preset: "realistic",
@@ -559,13 +560,15 @@ export function finalizeWeekend(input: Universe): Universe {
   universe.season.currentWeekend = undefined;
   universe.season.phase = universe.season.currentRoundIndex >= universe.season.weekends.length ? "season-complete" : "between-weekends";
   if (universe.season.phase !== "season-complete") universe = applyInSeasonDevelopment(universe);
+  const activeDriverIds = universe.season.teams.flatMap((team) => team.driverIds);
   const rebuilt = rebuildStandings(
-    universe.season.drivers.map((driver) => driver.id),
+    activeDriverIds,
     universe.season.teams.map((team) => team.id),
     universe.season.completedWeekends,
   );
   universe.season.driverStandings = rebuilt.drivers;
   universe.season.teamStandings = rebuilt.teams;
+  universe = recalculateSeasonPerformance(universe);
   universe.audit.push({ id: uid("audit"), action: "finalize-weekend", summary: `Finalized ${current.weekend.name}.`, at: new Date().toISOString() });
   universe.updatedAt = new Date().toISOString();
   return universe;
@@ -588,8 +591,9 @@ export function voidLastWeekend(input: Universe): Universe {
     if (team) team.ratings[upgrade.field] = Math.max(0, Math.min(100, team.ratings[upgrade.field] - upgrade.delta));
   }
   universe.season.teamUpgrades = retainedUpgrades;
+  const activeDriverIds = universe.season.teams.flatMap((team) => team.driverIds);
   const rebuilt = rebuildStandings(
-    universe.season.drivers.map((driver) => driver.id),
+    activeDriverIds,
     universe.season.teams.map((team) => team.id),
     universe.season.completedWeekends,
   );
