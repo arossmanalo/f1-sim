@@ -37,5 +37,11 @@ describe("autonomous dynasty seasons", () => {
     const second = simulateAutonomousSeasons(createUniverse(shortPreset(), { mode: "dynasty", seed: 44 }), 3);
     expect(projection(first)).toEqual(projection(second));
   });
-});
 
+  it("handles the full 24-round calendar without exhausting the simulation path", () => {
+    const result = simulateAutonomousSeasons(createUniverse(PRESET_2026, { mode: "dynasty", seed: 20260913 }), 1);
+    expect(result.season.year).toBe(2027);
+    expect(result.seasonHistory).toHaveLength(1);
+    expect(result.season.teams.every((team) => team.driverIds.length === 2)).toBe(true);
+  }, 15_000);
+});

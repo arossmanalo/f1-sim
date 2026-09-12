@@ -4,7 +4,7 @@ import { displayName } from "../format";
 import { CircuitMap } from "./CircuitMap";
 
 export function CommandView() {
-  const { current, beginWeekend, simulateSeason, simulateAutonomousSeasons, setView, branch, exportCurrent, refreshData, advancePhase, editOffseasonRating, confirm } = useSimulator();
+  const { current, beginWeekend, simulateSeason, simulateAutonomousSeasons, simulationRunning, setView, branch, exportCurrent, refreshData, advancePhase, editOffseasonRating, confirm } = useSimulator();
   if (!current) return null;
   const season = current.season;
   const next = season.weekends[season.currentRoundIndex];
@@ -27,8 +27,8 @@ export function CommandView() {
             {season.currentWeekend && <button className="button button--signal" onClick={() => setView("live")}><Radio size={18} /> Return to live timing</button>}
             {season.phase === "season-complete" && current.mode === "dynasty" && <button className="button button--signal" onClick={() => void advancePhase()}><ArrowRight size={18} /> Open offseason</button>}
             {season.phase === "offseason" && <button className="button button--signal" onClick={() => void advancePhase()}><Check size={18} /> Accept offseason package</button>}
-            {season.phase === "between-weekends" && <button className="button button--dark" onClick={() => void confirm({ title: "Finish the season?", message: "Every remaining round will be simulated without live interventions. This cannot be undone once results are finalized.", confirmLabel: "Finish season" }).then((approved) => { if (approved) void simulateSeason(); })}><FastForward size={18} /> Finish season</button>}
-            {current.mode === "dynasty" && <button className="button button--dark" onClick={() => void confirm({ title: "Run autonomous seasons?", message: "The race director will run five complete seasons, including team development, driver careers, junior intake, retirements, and contract decisions. Results are deterministic for this seed.", confirmLabel: "Run five seasons" }).then((approved) => { if (approved) void simulateAutonomousSeasons(5); })}><FastForward size={18} /> Run 5 seasons</button>}
+            {season.phase === "between-weekends" && <button className="button button--dark" disabled={simulationRunning} onClick={() => void confirm({ title: "Finish the season?", message: "Every remaining round will be simulated without live interventions. This cannot be undone once results are finalized.", confirmLabel: "Finish season" }).then((approved) => { if (approved) void simulateSeason(); })}><FastForward size={18} /> {simulationRunning ? "Finishing season…" : "Finish season"}</button>}
+            {current.mode === "dynasty" && <button className="button button--dark" disabled={simulationRunning} onClick={() => void confirm({ title: "Run autonomous seasons?", message: "The race director will run five complete seasons, including team development, driver careers, junior intake, retirements, and contract decisions. Results are deterministic for this seed.", confirmLabel: "Run five seasons" }).then((approved) => { if (approved) void simulateAutonomousSeasons(5); })}><FastForward size={18} /> {simulationRunning ? "Running seasons…" : "Run 5 seasons"}</button>}
           </div>
         </div>
         <CircuitMap circuit={circuit} round={next?.round ?? season.weekends.length} />

@@ -8,7 +8,6 @@ import {
   advanceSeasonPhase,
   createUniverse,
   exportUniverse,
-  fastForwardSeason,
   simulateAutonomousSeasons as runAutonomousSeasons,
   finalizeWeekend,
   finishSession,
@@ -72,6 +71,7 @@ interface SimulatorContextValue {
   view: AppView;
   health?: ServiceHealth;
   narrationStatus: "idle" | "preparing" | "generating";
+  simulationRunning: boolean;
   notice?: { tone: "info" | "success" | "error"; text: string };
   confirmation?: ConfirmationPrompt;
   presets: SeasonPreset[];
@@ -118,6 +118,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [health, setHealth] = useState<ServiceHealth>();
   const [narrationStatus, setNarrationStatus] = useState<"idle" | "preparing" | "generating">("idle");
+  const [simulationRunning, setSimulationRunning] = useState(false);
   const [notice, setNotice] = useState<SimulatorContextValue["notice"]>();
   const [confirmation, setConfirmation] = useState<ConfirmationState>();
   const current = universes.find((universe) => universe.id === currentId);
@@ -159,6 +160,40 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
       setNotice({ tone: "error", text: error instanceof Error ? error.message : "The operation failed." });
     }
   }, [commit, current]);
+
+  const simulateProgressively = useCallback(async (autonomousSeasons: number) => {
+    if (!current || simulationRunning) return;
+    const seasonCount = Math.max(1, Math.floor(autonomousSeasons));
+    let universe = current;
+    setSimulationRunning(true);
+    setNotice({ tone: "info", text: autonomousSeasons > 1 ? `Preparing ${seasonCount} autonomous seasons…` : "Preparing the remaining weekends…" });
+    const yieldToBrowser = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    try {
+      for (let seasonIndex = 0; seasonIndex < seasonCount; seasonIndex += 1) {
+        while (universe.season.phase !== "season-complete") {
+          if (!universe.season.currentWeekend) universe = startWeekend(universe);
+          await yieldToBrowser();
+          if (universe.season.currentWeekend?.race.status === "running") universe = finishSession(universe);
+          await yieldToBrowser();
+          universe = finalizeWeekend(universe);
+          await commit(universe);
+          setNotice({ tone: "info", text: `${universe.season.year}: completed ${universe.season.currentRoundIndex} of ${universe.season.weekends.length} weekends${seasonCount > 1 ? ` · autonomous season ${seasonIndex + 1} of ${seasonCount}` : ""}.` });
+          await yieldToBrowser();
+        }
+        if (seasonCount > 1) {
+          universe = runAutonomousSeasons(universe, 1);
+          await commit(universe);
+          setNotice({ tone: "info", text: seasonIndex < seasonCount - 1 ? `${universe.season.year} preseason is ready; continuing the autonomous run…` : `${universe.season.year} preseason is ready after the autonomous run.` });
+          await yieldToBrowser();
+        }
+      }
+      setNotice({ tone: "success", text: seasonCount > 1 ? `${seasonCount} autonomous seasons completed.` : "Season simulated to completion." });
+    } catch (error) {
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : "The simulation failed." });
+    } finally {
+      setSimulationRunning(false);
+    }
+  }, [commit, current, runAutonomousSeasons, simulationRunning]);
 
   const confirm = useCallback((prompt: ConfirmationPrompt) => new Promise<boolean>((resolve) => {
     setConfirmation((previous) => {
@@ -295,15 +330,15 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SimulatorContextValue>(() => ({
-    loading, universes, current, view, health, notice, confirmation, narrationStatus, presets: BUILT_IN_PRESETS, setView,
+    loading, universes, current, view, health, notice, confirmation, narrationStatus, simulationRunning, presets: BUILT_IN_PRESETS, setView,
     selectUniverse: (id) => { setCurrentId(id); void db.settings.put({ key: "lastUniverseId", value: id }); },
     create, removeUniverse, removeCurrent,
     beginWeekend: () => run(startWeekend, "Weekend started. Rules and base driver ratings are now locked."),
     advance: (laps) => run((universe) => advanceLaps(universe, laps)),
     finish: () => run(finishSession, "Chequered flag. Review the result before finalizing."),
     finalize: () => run(finalizeWeekend, "Weekend finalized and standings updated."),
-    simulateSeason: () => run(fastForwardSeason, "Season simulated to completion."),
-    simulateAutonomousSeasons: (seasons) => run((universe) => runAutonomousSeasons(universe, seasons), `${Math.max(1, Math.floor(seasons))} autonomous seasons completed.`),
+    simulateSeason: () => simulateProgressively(1),
+    simulateAutonomousSeasons: (seasons) => simulateProgressively(seasons),
     intervene: (kind, driverId, interventionValue, note) => run((universe) => applyIntervention(universe, { kind, driverId, value: interventionValue, note }), "Intervention committed. It cannot be undone."),
     branch: async () => { if (current) await commit(forkUniverse(current), "A new universe branch was created at this weekend boundary."); },
     voidLast: () => run(voidLastWeekend, "Previous result voided; a deterministic rerun has started."),
@@ -359,7 +394,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     narrate,
     editNarrative: (sourceId, text) => run((universe) => reviseNarrative(universe, sourceId, text), "Narrative revision stored without changing race facts."),
     exportCurrent, importBackup, refreshData, confirm, resolveConfirmation,
-  }), [commit, confirm, create, current, exportCurrent, health, importBackup, loading, narrate, narrationStatus, notice, removeCurrent, removeUniverse, resolveConfirmation, run, universes, view, confirmation]);
+  }), [commit, confirm, create, current, exportCurrent, health, importBackup, loading, narrate, narrationStatus, notice, removeCurrent, removeUniverse, resolveConfirmation, run, runAutonomousSeasons, simulateProgressively, simulationRunning, universes, view, confirmation]);
 
   return <SimulatorContext.Provider value={value}>{children}</SimulatorContext.Provider>;
 }
