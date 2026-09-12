@@ -77,6 +77,7 @@ interface SimulatorContextValue {
   setView(view: AppView): void;
   selectUniverse(id: string): void;
   create(options: CreateOptions): Promise<void>;
+  removeUniverse(id: string): Promise<void>;
   removeCurrent(): Promise<void>;
   beginWeekend(): Promise<void>;
   advance(laps: number): Promise<void>;
@@ -182,14 +183,24 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     setView("command");
   }, [commit, universes]);
 
-  const removeCurrent = useCallback(async () => {
-    if (!current) return;
-    await deleteUniverse(current.id);
-    const remaining = universes.filter((universe) => universe.id !== current.id);
+  const removeUniverse = useCallback(async (id: string) => {
+    const target = universes.find((universe) => universe.id === id);
+    if (!target) return;
+    await deleteUniverse(id);
+    const remaining = universes.filter((universe) => universe.id !== id);
     setUniverses(remaining);
-    setCurrentId(remaining[0]?.id);
-    setNotice({ tone: "info", text: "Universe removed from this browser." });
-  }, [current, universes]);
+    if (currentId === id) {
+      const nextId = remaining[0]?.id;
+      setCurrentId(nextId);
+      if (nextId) await db.settings.put({ key: "lastUniverseId", value: nextId });
+      else await db.settings.delete("lastUniverseId");
+    }
+    setNotice({ tone: "info", text: `${target.name} was removed from this browser.` });
+  }, [currentId, universes]);
+
+  const removeCurrent = useCallback(async () => {
+    if (current) await removeUniverse(current.id);
+  }, [current, removeUniverse]);
 
   const narrate = useCallback(async () => {
     if (!current || narrationStatus !== "idle") return;
@@ -284,7 +295,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
   const value = useMemo<SimulatorContextValue>(() => ({
     loading, universes, current, view, health, notice, confirmation, narrationStatus, presets: BUILT_IN_PRESETS, setView,
     selectUniverse: (id) => { setCurrentId(id); void db.settings.put({ key: "lastUniverseId", value: id }); },
-    create, removeCurrent,
+    create, removeUniverse, removeCurrent,
     beginWeekend: () => run(startWeekend, "Weekend started. Rules and base driver ratings are now locked."),
     advance: (laps) => run((universe) => advanceLaps(universe, laps)),
     finish: () => run(finishSession, "Chequered flag. Review the result before finalizing."),
@@ -345,7 +356,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     narrate,
     editNarrative: (sourceId, text) => run((universe) => reviseNarrative(universe, sourceId, text), "Narrative revision stored without changing race facts."),
     exportCurrent, importBackup, refreshData, confirm, resolveConfirmation,
-  }), [commit, confirm, create, current, exportCurrent, health, importBackup, loading, narrate, narrationStatus, notice, removeCurrent, resolveConfirmation, run, universes, view, confirmation]);
+  }), [commit, confirm, create, current, exportCurrent, health, importBackup, loading, narrate, narrationStatus, notice, removeCurrent, removeUniverse, resolveConfirmation, run, universes, view, confirmation]);
 
   return <SimulatorContext.Provider value={value}>{children}</SimulatorContext.Provider>;
 }
