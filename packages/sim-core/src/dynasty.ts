@@ -194,9 +194,15 @@ function resolveNextSeasonContracts(universe: Universe, targetSeason: number): M
         assignments.set(driverId, team.id);
         retainedCount += 1;
         renewed += 1;
+        universe.audit.push({ id: uid("audit"), action: "contract-market", summary: `${driver.code} renewed with ${team.shortName} after a ${metrics.seasons}-season performance review.`, at: new Date().toISOString() });
       } else {
         released += 1;
-        if (driverRefuses) declined += 1;
+        if (driverRefuses) {
+          declined += 1;
+          universe.audit.push({ id: uid("audit"), action: "contract-market", summary: `${driver.code} declined ${team.shortName}'s renewal offer after an underperforming contract term.`, at: new Date().toISOString() });
+        } else {
+          universe.audit.push({ id: uid("audit"), action: "contract-market", summary: `${team.shortName} released ${driver.code} after the contract-term performance review.`, at: new Date().toISOString() });
+        }
       }
     }
     seats.set(team.id, slots);
@@ -232,6 +238,7 @@ function resolveNextSeasonContracts(universe: Universe, targetSeason: number): M
     retained.add(candidate.id);
     assignments.set(candidate.id, vacancy.team.id);
     signed += 1;
+    universe.audit.push({ id: uid("audit"), action: "contract-market", summary: `${candidate.code} signed with ${vacancy.team.shortName} to fill an open seat for ${targetSeason}.`, at: new Date().toISOString() });
   }
   for (const team of universe.season.teams) {
     const slots = seats.get(team.id)!;
