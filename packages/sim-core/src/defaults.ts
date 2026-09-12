@@ -96,7 +96,10 @@ export function normalizeDriverDefaults(driver: Driver, baseSeed: number, active
   const isGenerated = generatedDriver(next);
   const archetype = next.archetype ?? defaultArchetype(next, isGenerated, potentialMax, rng);
   const existingStatus = next.status as DriverStatus | undefined;
-  const status: DriverStatus = active ? "f1" : existingStatus ?? "free-agent";
+  // Never resurrect a retired driver merely because a corrupted/stale seat
+  // reference still points at them. Roster recovery must see the retirement
+  // and replace that occupant explicitly.
+  const status: DriverStatus = existingStatus === "retired" ? "retired" : active ? "f1" : existingStatus ?? "free-agent";
   const backing = Math.max(0, Math.round(next.financialBackingCredits ?? (archetype === "pay-driver" ? rng.int(4_000, 20_000) : 0)));
 
   return {
