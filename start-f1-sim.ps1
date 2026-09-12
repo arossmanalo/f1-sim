@@ -2,14 +2,50 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location -LiteralPath $projectRoot
 
+function Find-CommandPath([string[]]$names) {
+  foreach ($name in $names) {
+    $command = Get-Command $name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($command) { return $command.Source }
+  }
+  return $null
+}
+
+$packageManager = Find-CommandPath @('pnpm.cmd', 'pnpm.exe', 'pnpm.ps1', 'pnpm')
+$packageManagerPrefix = @()
+if (-not $packageManager) {
+  $nodePath = Find-CommandPath @('node.exe', 'node')
+  $corepackCandidates = @()
+  if ($nodePath) { $corepackCandidates += Join-Path (Split-Path -Parent $nodePath) 'corepack.cmd' }
+  if ($env:ProgramFiles) { $corepackCandidates += Join-Path $env:ProgramFiles 'nodejs\corepack.cmd' }
+  if ($env:LOCALAPPDATA) { $corepackCandidates += Join-Path $env:LOCALAPPDATA 'Programs\nodejs\corepack.cmd' }
+  $packageManager = $corepackCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+  if ($packageManager) {
+    # Keep Corepack's download/cache out of protected user locations.
+    $corepackCache = Join-Path ([IO.Path]::GetTempPath()) 'f1-sim-corepack'
+    $env:COREPACK_HOME = $corepackCache
+    $packageManagerPrefix = @('pnpm')
+  }
+}
+if (-not $packageManager) {
+  $packageManager = Find-CommandPath @('npm.cmd', 'npm.exe', 'npm.ps1', 'npm')
+  if ($packageManager) { $packageManagerPrefix = @('exec', '--yes', 'pnpm@11.19.0', '--') }
+}
+if (-not $packageManager) {
+  throw 'F1 SIM requires Node.js and pnpm. Install Node.js 24+ (which includes Corepack), then run this launcher again.'
+}
+
+function Invoke-PackageManager([string[]]$arguments) {
+  & $script:packageManager @script:packageManagerPrefix @arguments
+  if ($LASTEXITCODE -ne 0) { throw "Package manager command failed with exit code $LASTEXITCODE." }
+}
+
 if (-not (Test-Path -LiteralPath 'node_modules')) {
   Write-Host 'Installing F1 SIM dependencies...'
-  pnpm install
+  Invoke-PackageManager @('install')
 }
 
 Write-Host 'Building F1 SIM...'
-pnpm build
-if ($LASTEXITCODE -ne 0) { throw 'F1 SIM could not build. Review the build output above.' }
+Invoke-PackageManager @('build')
 
 $port = 4173
 if (Test-Path -LiteralPath '.env') {
