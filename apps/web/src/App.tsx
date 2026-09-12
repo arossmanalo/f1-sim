@@ -15,6 +15,7 @@ import {
   Menu,
   Radio,
   Settings2,
+  SlidersHorizontal,
   ShieldCheck,
   Trophy,
   Users,
@@ -33,6 +34,7 @@ import { CompareView } from "./components/CompareView";
 import { HomeView } from "./components/HomeView";
 import { RecordsView } from "./components/RecordsView";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { SettingsView } from "./components/SettingsView";
 
 const navigation: Array<{ id: AppView; label: string; icon: typeof Gauge }> = [
   { id: "home", label: "Home", icon: Home },
@@ -45,6 +47,7 @@ const navigation: Array<{ id: AppView; label: string; icon: typeof Gauge }> = [
   { id: "archive", label: "History & audit", icon: Archive },
   { id: "records", label: "Records", icon: Medal },
   { id: "compare", label: "Compare reality", icon: GitFork },
+  { id: "settings", label: "Settings", icon: SlidersHorizontal },
 ];
 
 export function App() {
@@ -66,6 +69,7 @@ export function App() {
     archive: ArchiveView,
     records: RecordsView,
     compare: CompareView,
+    settings: SettingsView,
   }[view];
 
   return (

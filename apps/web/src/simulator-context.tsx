@@ -43,7 +43,7 @@ import { generateNarrative, getHealth, refreshCurrentData, type ServiceHealth } 
 import { db, deleteUniverse, lastUniverseId, loadUniverses, saveUniverse } from "./db";
 import { buildNarrativeStoryContext } from "./story-context";
 
-export type AppView = "home" | "command" | "live" | "standings" | "garage" | "market" | "paddock" | "archive" | "records" | "compare";
+export type AppView = "home" | "command" | "live" | "standings" | "garage" | "market" | "paddock" | "archive" | "records" | "compare" | "settings";
 
 interface CreateOptions {
   preset: SeasonPreset;
