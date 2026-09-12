@@ -41,6 +41,7 @@ export function MarketView() {
       <div className="market-layout">
         <section className="data-section contract-ledger">
           <div className="section-heading"><div><span>Active agreements</span><h2>Contract ledger</h2></div><BriefcaseBusiness /></div>
+          <p className="section-note">This ledger is the source of truth for the grid. When a term expires, the team reviews the driver’s full contract record and the driver may accept, refuse, or move to another open seat. Expired and terminated rows stay visible as history; approved offseason decisions create the active contracts used by the next season.</p>
           <div className="data-table">
             <div className="data-row data-row--head"><span>Driver</span><span>Team</span><span>Role</span><span>Term</span><span>Status</span><span>Salary</span></div>
             {contracts.map((contract) => {
