@@ -17,3 +17,4 @@ export * from "./performance";
 export * from "./career";
 export * from "./nationalities";
 export * from "./contract-market";
+export * from "./autonomous";
