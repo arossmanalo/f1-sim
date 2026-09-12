@@ -110,6 +110,111 @@ export interface TeamUpgrade {
   summary: string;
 }
 
+export type RetirementAttribution = "none" | "mechanical" | "driver" | "other";
+export type PerformanceExclusionReason = "missing-result" | "mechanical-dnf" | "unattributed-dnf" | "dns" | "dq";
+
+/** A result interpreted against the car and driver combination that produced it. */
+export interface RelativeToMachineryScore {
+  machineryRank: number;
+  machineryRating: number;
+  machineryExpectedPosition: number;
+  expectedPosition: number;
+  actualPosition?: number;
+  positionDelta?: number;
+  score: number;
+  eligible: boolean;
+  exclusionReason?: PerformanceExclusionReason;
+}
+
+/** Per-weekend comparison; invalid race samples never leak into race head-to-heads. */
+export interface TeammateComparison {
+  teammateId?: Id;
+  eligible: boolean;
+  qualifyingEligible: boolean;
+  raceEligible: boolean;
+  qualifyingPositionDelta?: number;
+  racePositionDelta?: number;
+  pointsDelta?: number;
+  qualifyingResult?: "win" | "loss" | "tie";
+  raceResult?: "win" | "loss" | "tie";
+  score: number;
+  excludedReasons: PerformanceExclusionReason[];
+}
+
+export interface DriverWeekendPerformance {
+  weekendId: Id;
+  round: number;
+  teamId: Id;
+  qualifyingPosition?: number;
+  racePosition?: number;
+  raceStatus?: CarState["status"];
+  points: number;
+  retirementAttribution: RetirementAttribution;
+  relativeToMachinery: RelativeToMachineryScore;
+  teammateComparison: TeammateComparison;
+  weekendScore: number;
+  confidenceDelta: number;
+}
+
+export interface HeadToHeadRecord {
+  wins: number;
+  losses: number;
+  ties: number;
+}
+
+export interface DriverSeasonPerformance {
+  driverId: Id;
+  starts: number;
+  validFinishes: number;
+  mechanicalDnfs: number;
+  driverIncidents: number;
+  points: number;
+  pointsPerValidFinish: number;
+  averageQualifyingPosition?: number;
+  averageFinishingPosition?: number;
+  averageRelativeToMachinery: number;
+  averageWeekendScore: number;
+  rollingForm: number;
+  teamConfidenceByTeamId: Record<Id, number>;
+  qualifyingHeadToHead: HeadToHeadRecord;
+  raceHeadToHead: HeadToHeadRecord;
+  averageQualifyingTeammateDelta?: number;
+  averageRaceTeammateDelta?: number;
+  weekends: DriverWeekendPerformance[];
+}
+
+export interface SeasonPerformance {
+  version: 1;
+  season: number;
+  evaluatedThroughRound: number;
+  baselineFormByDriverId: Record<Id, number>;
+  drivers: Record<Id, DriverSeasonPerformance>;
+}
+
+export interface PerformanceEvaluationConfig {
+  rollingWindowRaces: number;
+  baselineTeamConfidence: number;
+  maximumConfidenceMovementPerRace: number;
+  confidenceSensitivity: number;
+  raceWeight: number;
+  qualifyingWeight: number;
+  teammateWeight: number;
+  driverIncidentPenalty: number;
+  unexpectedPodiumBonus: number;
+  formBaselineWeight: number;
+  machineryExpectationWeight: number;
+  driverExpectationWeight: number;
+  gridContextWeight: number;
+  teammateQualifyingWeight: number;
+  teammateRaceWeight: number;
+  teammatePointsWeight: number;
+  incompleteRaceConfidenceMultiplier: number;
+  resultPositionScale: number;
+  qualifyingPositionScale: number;
+  teammatePositionScale: number;
+  teammatePointsScale: number;
+}
+
 export interface CircuitProfile {
   power: number;
   aero: number;
@@ -177,6 +282,8 @@ export interface Team {
   riskTolerance?: number;
   prestige?: number;
   championshipExpectations?: number;
+  /** Rolling confidence each constructor has in its current drivers. */
+  driverConfidence?: Record<Id, number>;
   careerStats?: TeamCareerStats;
   evidence: RatingEvidence;
 }
@@ -549,6 +656,8 @@ export interface SeasonState {
   teamStandings: TeamStanding[];
   /** Development changes applied between race weekends. Optional for v1 saves. */
   teamUpgrades?: TeamUpgrade[];
+  /** Deterministic post-race evaluation; optional for saves created before schema v2. */
+  performance?: SeasonPerformance;
   rulesLocked: boolean;
   offseasonProposal?: OffseasonProposal;
 }
