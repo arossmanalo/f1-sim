@@ -6,6 +6,24 @@ export type SessionKind = "qualifying" | "sprint" | "race";
 export type SessionStatus = "ready" | "running" | "complete" | "void";
 export type SeasonPhase = "preseason" | "between-weekends" | "session" | "season-complete" | "offseason";
 export type UniverseMode = "standalone" | "dynasty";
+export type DriverStatus = "f1" | "reserve" | "free-agent" | "f2" | "f3" | "other-motorsport" | "retired";
+export type DriverCareerPhase = "early-development" | "rapid-development" | "early-prime" | "prime" | "late-prime" | "decline";
+export type DriverArchetype =
+  | "all-rounder"
+  | "qualifying-specialist"
+  | "racecraft-specialist"
+  | "tire-whisperer"
+  | "wet-weather-specialist"
+  | "aggressive-racer"
+  | "consistent-driver"
+  | "technical-driver"
+  | "late-bloomer"
+  | "prodigy"
+  | "pay-driver"
+  | "development-project"
+  | "veteran-leader";
+export type TeamPhilosophy = "championship" | "balanced" | "development" | "financial-survival";
+export type TeamStrategyState = "DOMINANT" | "TITLE_CONTENDER" | "CONTENDING" | "MIDFIELD" | "REBUILDING" | "DEVELOPING" | "FINANCIAL_DIFFICULTY";
 
 export interface RatingEvidence {
   source: string;
@@ -25,6 +43,47 @@ export interface DriverRatings {
   wetWeather: number;
   consistency: number;
   experience: number;
+}
+
+export interface DriverAdvancedRatings {
+  adaptability: number;
+  technicalFeedback: number;
+  pressureHandling: number;
+}
+
+export interface DriverPersonality {
+  ambition: number;
+  loyalty: number;
+  aggression: number;
+  patience: number;
+  riskTolerance: number;
+  moneyMotivation: number;
+  teamwork: number;
+  confidence: number;
+  workEthic: number;
+  marketability: number;
+}
+
+export interface DriverCareerStats {
+  seasons: number;
+  teamIds: Id[];
+  raceStarts: number;
+  wins: number;
+  podiums: number;
+  poles: number;
+  fastestLaps: number;
+  points: number;
+  championships: number;
+  bestChampionshipFinish?: number;
+  careerEarningsCredits: number;
+}
+
+export interface TeamCareerStats {
+  constructorsChampionships: number;
+  raceWins: number;
+  podiums: number;
+  driverChampionships: number;
+  seasonResults: Array<{ season: number; position: number; points: number }>;
 }
 
 export interface TeamRatings {
@@ -73,6 +132,21 @@ export interface Driver {
   age: number;
   ratings: DriverRatings;
   potential: number;
+  /** Career fields are optional on legacy v1 data and populated by normalizeUniverse. */
+  potentialMin?: number;
+  potentialMax?: number;
+  developmentRate?: number;
+  generatedDriver?: boolean;
+  countryCode?: string;
+  status?: DriverStatus;
+  careerPhase?: DriverCareerPhase;
+  archetype?: DriverArchetype;
+  advancedRatings?: DriverAdvancedRatings;
+  personality?: DriverPersonality;
+  careerStats?: DriverCareerStats;
+  reputation?: number;
+  financialBackingCredits?: number;
+  sponsorshipValue?: number;
   form: number;
   morale: number;
   pressure: number;
@@ -90,6 +164,20 @@ export interface Team {
   color: string;
   driverIds: [Id, Id];
   ratings: TeamRatings;
+  /** Organization fields are optional on legacy v1 data and populated by normalizeUniverse. */
+  reputation?: number;
+  budgetCredits?: number;
+  driverBudgetCredits?: number;
+  developmentQuality?: number;
+  academyQuality?: number;
+  facilities?: number;
+  scoutingQuality?: number;
+  philosophy?: TeamPhilosophy;
+  strategyState?: TeamStrategyState;
+  riskTolerance?: number;
+  prestige?: number;
+  championshipExpectations?: number;
+  careerStats?: TeamCareerStats;
   evidence: RatingEvidence;
 }
 
@@ -144,6 +232,88 @@ export interface Contract {
   teamExitPosition?: number;
   buyoutCredits: number;
   status: "active" | "agreed" | "expired" | "terminated";
+  effectiveSeason?: number;
+  origin?: "preset" | "renewal" | "market" | "override" | "migration";
+  decidedAt?: string;
+  terminationReason?: string;
+  decisionId?: Id;
+}
+
+export interface UtilityScoreBreakdown {
+  totalScore: number;
+  components: Record<string, number>;
+  modifiers?: Record<string, number>;
+}
+
+export type ManagementDecisionKind = "renew" | "wait" | "replace" | "offer" | "accept" | "reject" | "counter" | "promote" | "release" | "retire" | "develop";
+
+export interface AiDecision {
+  id: Id;
+  season: number;
+  kind: ManagementDecisionKind;
+  actorType: "team" | "driver" | "system";
+  actorId: Id;
+  targetIds: Id[];
+  outcome: string;
+  reasons: string[];
+  utility?: UtilityScoreBreakdown;
+  createdAt: string;
+}
+
+export interface ManagementEvent {
+  id: Id;
+  season: number;
+  round?: number;
+  type: "contract" | "transfer" | "promotion" | "release" | "retirement" | "development" | "team-state" | "recovery";
+  summary: string;
+  driverIds: Id[];
+  teamIds: Id[];
+  decisionId?: Id;
+  createdAt: string;
+}
+
+export interface JuniorState {
+  season: number;
+  f3DriverIds: Id[];
+  f2DriverIds: Id[];
+  reserveDriverIds: Id[];
+  academyDriverIdsByTeam: Record<Id, Id[]>;
+  incomingClassDriverIds: Id[];
+}
+
+export interface TeamPhilosophyWeights {
+  currentPerformance: number;
+  consistency: number;
+  experience: number;
+  potential: number;
+  age: number;
+  academyStatus: number;
+  marketability: number;
+  salaryEfficiency: number;
+  teamFit: number;
+}
+
+export interface WorldConfig {
+  version: 1;
+  debugAiDecisions: boolean;
+  driverOverallWeights: {
+    racePace: number;
+    qualifyingPace: number;
+    consistency: number;
+    wetWeather: number;
+    tireManagement: number;
+    experience: number;
+    defending: number;
+    overtaking: number;
+    adaptability: number;
+    technicalFeedback: number;
+    pressureHandling: number;
+  };
+  teamPhilosophyWeights: Record<TeamPhilosophy, TeamPhilosophyWeights>;
+  development: { minimumRate: number; maximumRate: number; yearlyVariance: number; maximumYearlyOverallChange: number };
+  retirement: { minimumAge: number; baseAge: number; steepDeclineAge: number; noSeatModifier: number };
+  market: { maximumRounds: number; maximumIterations: number; minimumContractYears: number; maximumContractYears: number; salaryFloorCredits: number };
+  generation: { f3PerSeason: number; promotionMinimumAge: number; generationalTalentChance: number; nationalityWeights: Record<string, number> };
 }
 
 export interface SeasonPreset {
@@ -314,6 +484,10 @@ export interface SeasonArchive {
   completedWeekends: CompletedWeekend[];
   driverStandings: DriverStanding[];
   teamStandings: TeamStanding[];
+  driverChampionId?: Id;
+  constructorChampionId?: Id;
+  managementEvents?: ManagementEvent[];
+  aiDecisions?: AiDecision[];
 }
 
 export interface WeekendState {
@@ -380,7 +554,7 @@ export interface SeasonState {
 }
 
 export interface Universe {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   id: Id;
   name: string;
   mode: UniverseMode;
@@ -393,8 +567,35 @@ export interface Universe {
   narratives: NarrativeVersion[];
   /** Prior completed dynasty seasons; optional for existing v1 saves. */
   seasonHistory?: SeasonArchive[];
+  /** Autonomous-world fields are optional only for persisted v1 saves. */
+  worldConfig?: WorldConfig;
+  juniorState?: JuniorState;
+  aiDecisions?: AiDecision[];
+  managementEvents?: ManagementEvent[];
   parentUniverseId?: Id;
   branchRound?: number;
+}
+
+export type NormalizedDriver = Driver & Required<Pick<Driver,
+  "potentialMin" | "potentialMax" | "developmentRate" | "generatedDriver" | "countryCode" | "status" |
+  "careerPhase" | "archetype" | "advancedRatings" | "personality" | "careerStats" | "reputation" |
+  "financialBackingCredits" | "sponsorshipValue"
+>>;
+
+export type NormalizedTeam = Team & Required<Pick<Team,
+  "reputation" | "budgetCredits" | "driverBudgetCredits" | "developmentQuality" | "academyQuality" |
+  "facilities" | "scoutingQuality" | "philosophy" | "strategyState" | "riskTolerance" | "prestige" |
+  "championshipExpectations" | "careerStats"
+>>;
+
+export interface NormalizedUniverse extends Omit<Universe, "schemaVersion" | "season" | "seasonHistory" | "worldConfig" | "juniorState" | "aiDecisions" | "managementEvents"> {
+  schemaVersion: 2;
+  season: Omit<SeasonState, "drivers" | "teams"> & { drivers: NormalizedDriver[]; teams: NormalizedTeam[] };
+  worldConfig: WorldConfig;
+  juniorState: JuniorState;
+  aiDecisions: AiDecision[];
+  managementEvents: ManagementEvent[];
+  seasonHistory: SeasonArchive[];
 }
 
 export type SimulationCommand =

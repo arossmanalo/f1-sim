@@ -21,6 +21,7 @@ import type {
 } from "./types";
 import { validatePreset } from "./validation";
 import { applyInSeasonDevelopment } from "./progression";
+import { normalizeUniverse } from "./migrations";
 
 const DEFAULT_RANDOMNESS: RandomnessSettings = {
   preset: "realistic",
@@ -231,7 +232,7 @@ export function createUniverse(
   if (errors.length > 0) throw new Error(errors.join("\n"));
   const now = new Date().toISOString();
   const universe: Universe = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: uid("universe"),
     name: options.name ?? `${preset.year} alternate season`,
     mode: options.mode ?? "standalone",
@@ -260,7 +261,7 @@ export function createUniverse(
     narratives: [],
     seasonHistory: [],
   };
-  return universe;
+  return normalizeUniverse(universe);
 }
 
 export function startWeekend(input: Universe): Universe {
@@ -656,7 +657,7 @@ export function exportUniverse(universe: Universe): string {
 }
 
 export function importUniverse(serialized: string): Universe {
-  const parsed = JSON.parse(serialized) as { kind?: string; universe?: Universe };
-  if (parsed.kind !== "f1-sim-universe" || parsed.universe?.schemaVersion !== 1) throw new Error("Unsupported F1 SIM backup.");
-  return parsed.universe;
+  const parsed = JSON.parse(serialized) as { kind?: string; universe?: unknown };
+  if (parsed.kind !== "f1-sim-universe" || !parsed.universe) throw new Error("Unsupported F1 SIM backup.");
+  return normalizeUniverse(parsed.universe);
 }

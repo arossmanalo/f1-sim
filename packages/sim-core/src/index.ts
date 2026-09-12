@@ -7,3 +7,6 @@ export * from "./presets";
 export * from "./dynasty";
 export * from "./commands";
 export * from "./progression";
+export * from "./config";
+export * from "./defaults";
+export * from "./migrations";

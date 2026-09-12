@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { SourceSnapshot, Universe } from "@f1-sim/core";
+import { normalizeUniverse, type SourceSnapshot, type Universe } from "@f1-sim/core";
 
 export interface StoredSnapshot extends SourceSnapshot {
   payload?: unknown;
@@ -17,18 +17,39 @@ class F1SimDatabase extends Dexie {
       snapshots: "id, season, fetchedAt, provider",
       settings: "key",
     });
+    // The indexes did not change in schema v2. Bumping Dexie still records the
+    // application migration, while normalization below upgrades each save
+    // idempotently and keeps a malformed record from blocking every universe.
+    this.version(2).stores({
+      universes: "id, updatedAt, mode, season.year",
+      snapshots: "id, season, fetchedAt, provider",
+      settings: "key",
+    });
   }
 }
 
 export const db = new F1SimDatabase();
 
 export async function loadUniverses(): Promise<Universe[]> {
-  return db.universes.orderBy("updatedAt").reverse().toArray();
+  const stored = await db.universes.orderBy("updatedAt").reverse().toArray();
+  const valid: Universe[] = [];
+  for (const candidate of stored) {
+    try {
+      const normalized = normalizeUniverse(candidate);
+      valid.push(normalized);
+      if (candidate.schemaVersion !== normalized.schemaVersion) await db.universes.put(normalized);
+    } catch {
+      // Preserve the invalid IndexedDB row for manual recovery/export, but do
+      // not allow one damaged save to prevent the rest of the library loading.
+    }
+  }
+  return valid;
 }
 
 export async function saveUniverse(universe: Universe): Promise<void> {
-  await db.universes.put(universe);
-  await db.settings.put({ key: "lastUniverseId", value: universe.id });
+  const normalized = normalizeUniverse(universe);
+  await db.universes.put(normalized);
+  await db.settings.put({ key: "lastUniverseId", value: normalized.id });
 }
 
 export async function deleteUniverse(id: string): Promise<void> {

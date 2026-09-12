@@ -113,6 +113,9 @@ function contractsFor(year: number, teams: Team[], drivers: Driver[]): Contract[
       teamExitPosition: 7,
       buyoutCredits: Math.round(ability * 260),
       status: "active" as const,
+      effectiveSeason: year,
+      origin: "preset" as const,
+      decidedAt: `${year}-01-01T00:00:00.000Z`,
     };
   }));
 }
