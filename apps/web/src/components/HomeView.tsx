@@ -1,4 +1,4 @@
-import { CalendarDays, Flag, Gauge, Plus, Trophy } from "lucide-react";
+import { CalendarDays, Flag, Gauge, Plus, Trash2, Trophy } from "lucide-react";
 import { useSimulator } from "../simulator-context";
 
 function phaseLabel(phase: string): string {
@@ -9,7 +9,7 @@ function phaseLabel(phase: string): string {
 }
 
 export function HomeView({ onNew = () => undefined }: { onNew?: () => void }) {
-  const { universes, current, selectUniverse, setView } = useSimulator();
+  const { universes, current, selectUniverse, setView, removeUniverse, confirm } = useSimulator();
   const totalRounds = universes.reduce((sum, universe) => sum + universe.season.weekends.length, 0);
   const completedRounds = universes.reduce((sum, universe) => sum + universe.season.completedWeekends.filter((weekend) => !weekend.voided).length, 0);
   return <div className="page-stack home-page">
@@ -30,7 +30,7 @@ export function HomeView({ onNew = () => undefined }: { onNew?: () => void }) {
           <h3>{universe.name}</h3>
           <div className="save-slot__season"><strong>{universe.season.year}</strong><span>{phaseLabel(universe.season.phase)}</span></div>
           <div className="save-slot__meta"><span><CalendarDays /> {completed} / {universe.season.weekends.length} rounds</span><span><Trophy /> {next?.name ?? "Archive ready"}</span></div>
-          <button className="button button--dark button--full" onClick={() => { selectUniverse(universe.id); setView("command"); }}>{isActive ? "Open season command" : "Load universe"}</button>
+          <div className="save-slot__actions"><button className="button button--dark" onClick={() => { selectUniverse(universe.id); setView("command"); }}>{isActive ? "Open season command" : "Load universe"}</button><button className="save-slot__delete" aria-label={`Delete ${universe.name}`} onClick={() => void confirm({ title: `Delete ${universe.name}?`, message: "This permanently removes the save from this browser. Export a backup first if you may want it later.", confirmLabel: "Delete save", danger: true }).then((approved) => { if (approved) void removeUniverse(universe.id); })}><Trash2 /> Delete</button></div>
         </article>;
       })}</div>}
     </section>
