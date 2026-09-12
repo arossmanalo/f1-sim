@@ -81,60 +81,173 @@ export function resetTeamRatingsForNextSeason(input: Universe, targetSeason = in
   return universe;
 }
 
-function resolveNextSeasonContracts(universe: Universe, targetSeason: number): { retained: number; signed: number; released: number } {
-  const prior = new Map(universe.season.driverStandings.map((standing) => [standing.driverId, standing]));
-  const ordered = [...universe.season.driverStandings].sort((a, b) => b.points - a.points || b.wins - a.wins);
-  const cutoff = ordered[Math.max(0, Math.floor(ordered.length * 0.6))]?.points ?? 0;
-  const assignments = new Map<string, string>();
+interface MarketResult {
+  retained: number;
+  renewed: number;
+  signed: number;
+  released: number;
+  declined: number;
+}
+
+interface DriverMarketMetrics {
+  points: number;
+  wins: number;
+  podiums: number;
+  seasons: number;
+  averagePosition: number;
+}
+
+type SeatAssignments = [string | undefined, string | undefined];
+
+function driverMarketMetrics(universe: Universe, driverId: string, contractStart: number, targetSeason: number): DriverMarketMetrics {
+  const records: Array<{ points: number; wins: number; podiums: number; position: number }> = [];
+  const archives = (universe.seasonHistory ?? []).filter((archive) => archive.year >= contractStart && archive.year < targetSeason);
+  for (const archive of archives) {
+    const standing = archive.driverStandings.find((entry) => entry.driverId === driverId);
+    if (!standing) continue;
+    const order = [...archive.driverStandings].sort((a, b) => b.points - a.points || b.wins - a.wins || a.driverId.localeCompare(b.driverId));
+    records.push({ points: standing.points, wins: standing.wins, podiums: standing.podiums, position: Math.max(1, order.findIndex((entry) => entry.driverId === driverId) + 1) });
+  }
+  // Existing saves may not archive the immediately preceding season.  Use the
+  // live table as a fallback, but never double-count a snapshot already in the
+  // archive.
+  if (!archives.some((archive) => archive.year === targetSeason - 1)) {
+    const standing = universe.season.driverStandings.find((entry) => entry.driverId === driverId);
+    if (standing) {
+      const order = [...universe.season.driverStandings].sort((a, b) => b.points - a.points || b.wins - a.wins || a.driverId.localeCompare(b.driverId));
+      records.push({ points: standing.points, wins: standing.wins, podiums: standing.podiums, position: Math.max(1, order.findIndex((entry) => entry.driverId === driverId) + 1) });
+    }
+  }
+  if (records.length === 0) return { points: 0, wins: 0, podiums: 0, seasons: 0, averagePosition: universe.season.drivers.length };
+  return {
+    points: records.reduce((sum, record) => sum + record.points, 0),
+    wins: records.reduce((sum, record) => sum + record.wins, 0),
+    podiums: records.reduce((sum, record) => sum + record.podiums, 0),
+    seasons: records.length,
+    averagePosition: records.reduce((sum, record) => sum + record.position, 0) / records.length,
+  };
+}
+
+function driverMarketScore(driver: Universe["season"]["drivers"][number], metrics: DriverMarketMetrics, fieldSize: number): number {
+  // A zero-point season is not rescued by an arbitrary alphabetical tie-break
+  // position.  Only drivers who actually scored points receive the finishing
+  // position component of the offer score.
+  const positionScore = metrics.points > 0 ? Math.max(0, fieldSize - metrics.averagePosition) * 4.2 : 0;
+  const resultsScore = metrics.wins * 4 + metrics.podiums * 1.2 + Math.min(12, metrics.points / 20);
+  const raw = 42 + positionScore + resultsScore + driver.potential * 0.12 + driver.ratings.racePace * 0.16;
+  return Math.max(0, Math.min(100, raw));
+}
+
+/**
+ * Resolve the next-season driver market as a two-sided decision.  An expired
+ * contract is an offer, not an automatic renewal: the team evaluates the
+ * driver's full contract-term record and the driver can reject a weak team.
+ * All choices use a season/driver seed so rerunning the same action log gives
+ * the same grid.
+ */
+function resolveNextSeasonContracts(universe: Universe, targetSeason: number): MarketResult {
+  const teamOrder = [...universe.season.teamStandings].sort((a, b) => b.points - a.points || b.wins - a.wins || a.teamId.localeCompare(b.teamId));
+  const teamRank = new Map(teamOrder.map((standing, index) => [standing.teamId, index + 1]));
+  const fieldSize = Math.max(2, universe.season.drivers.length);
+  const marketRng = new DeterministicRng(hashSeed(universe.baseSeed, targetSeason, "contract-market"));
   const retained = new Set<string>();
+  const assignments = new Map<string, string>();
+  const seats = new Map<string, SeatAssignments>();
+  let retainedCount = 0;
+  let renewed = 0;
   let released = 0;
+  let declined = 0;
+
   for (const team of universe.season.teams) {
-    for (const driverId of team.driverIds) {
-      const contract = universe.season.contracts.find((candidate) => candidate.driverId === driverId && candidate.teamId === team.id && candidate.status !== "terminated" && candidate.endSeason >= targetSeason);
-      const standing = prior.get(driverId);
-      const keep = Boolean(contract) || Boolean(standing && standing.points >= cutoff);
-      if (keep && !retained.has(driverId)) {
+    const slots: SeatAssignments = [undefined, undefined];
+    const rank = teamRank.get(team.id) ?? universe.season.teams.length;
+    const teamQuality = (team.ratings.power + team.ratings.aerodynamics + team.ratings.mechanicalGrip + team.ratings.reliability) / 4;
+    for (let seat = 0; seat < team.driverIds.length; seat += 1) {
+      const driverId = team.driverIds[seat]!;
+      if (retained.has(driverId)) continue; // Protect against malformed duplicate grids.
+      const driver = universe.season.drivers.find((candidate) => candidate.id === driverId);
+      if (!driver) { released += 1; continue; }
+      const contract = [...universe.season.contracts]
+        .filter((candidate) => candidate.driverId === driverId && candidate.teamId === team.id && (candidate.status === "active" || candidate.status === "agreed"))
+        .sort((a, b) => b.endSeason - a.endSeason)[0];
+      if (contract && contract.endSeason >= targetSeason) {
+        slots[seat] = driverId;
         retained.add(driverId);
         assignments.set(driverId, team.id);
-      } else if (!keep) {
+        retainedCount += 1;
+        continue;
+      }
+
+      const metrics = driverMarketMetrics(universe, driverId, contract?.startSeason ?? targetSeason - 1, targetSeason);
+      const score = driverMarketScore(driver, metrics, fieldSize);
+      const teamExpectation = 48 + Math.max(0, universe.season.teams.length - rank) * 2.1;
+      const teamWantsRenewal = score >= teamExpectation || (score >= teamExpectation - 8 && marketRng.chance(0.35));
+      const driverPrefersToStay = teamQuality + Math.max(0, universe.season.teams.length - rank) * 1.5 + (seat === 0 ? 3 : 0);
+      // A low-performing driver can walk away from a weak seat rather than
+      // accept a token renewal.  Strong teams, lead roles, and a good season
+      // still make the same offer attractive, so this is not a blanket churn
+      // rule.
+      const driverRefuses = score <= teamExpectation - 6 || (score < teamExpectation - 3 && driverPrefersToStay < 84 && marketRng.chance(0.65));
+      if (teamWantsRenewal && !driverRefuses) {
+        slots[seat] = driverId;
+        retained.add(driverId);
+        assignments.set(driverId, team.id);
+        retainedCount += 1;
+        renewed += 1;
+      } else {
         released += 1;
+        if (driverRefuses) declined += 1;
       }
     }
+    seats.set(team.id, slots);
   }
 
   const candidates = universe.season.drivers.filter((driver) => !retained.has(driver.id)).sort((a, b) => {
-    const aStanding = prior.get(a.id); const bStanding = prior.get(b.id);
-    const aScore = (aStanding?.points ?? 0) + a.potential * 0.2 + a.ratings.racePace * 0.1;
-    const bScore = (bStanding?.points ?? 0) + b.potential * 0.2 + b.ratings.racePace * 0.1;
+    const aScore = driverMarketScore(a, driverMarketMetrics(universe, a.id, targetSeason - 1, targetSeason), fieldSize);
+    const bScore = driverMarketScore(b, driverMarketMetrics(universe, b.id, targetSeason - 1, targetSeason), fieldSize);
     return bScore - aScore || a.id.localeCompare(b.id);
   });
+  const vacancies = universe.season.teams.flatMap((team) => {
+    const slots = seats.get(team.id)!;
+    return slots.map((driverId, seat) => ({ team, seat, empty: !driverId })).filter((slot) => slot.empty);
+  }).sort((a, b) => (teamRank.get(a.team.id) ?? 99) - (teamRank.get(b.team.id) ?? 99) || a.seat - b.seat);
   let signed = 0;
+  for (const vacancy of vacancies) {
+    const slots = seats.get(vacancy.team.id)!;
+    const rank = teamRank.get(vacancy.team.id) ?? universe.season.teams.length;
+    const quality = (vacancy.team.ratings.power + vacancy.team.ratings.aerodynamics + vacancy.team.ratings.mechanicalGrip + vacancy.team.ratings.reliability) / 4;
+    let candidateIndex = candidates.findIndex((candidate) => {
+      const metrics = driverMarketMetrics(universe, candidate.id, targetSeason - 1, targetSeason);
+      const score = driverMarketScore(candidate, metrics, fieldSize);
+      const offer = quality + (rank <= 5 ? 8 : 0) + (vacancy.seat === 0 ? 4 : 0) + marketRng.between(-4, 4);
+      const desired = 61 + Math.max(0, score - 60) * 0.18;
+      return offer >= desired;
+    });
+    // The final open seat is always filled.  A driver may reject a poor offer,
+    // but the simulator must still produce a legal two-car grid.
+    if (candidateIndex < 0) candidateIndex = 0;
+    const candidate = candidates.splice(candidateIndex, 1)[0];
+    if (!candidate) throw new Error(`${vacancy.team.name} could not fill both active seats for ${targetSeason}.`);
+    slots[vacancy.seat] = candidate.id;
+    retained.add(candidate.id);
+    assignments.set(candidate.id, vacancy.team.id);
+    signed += 1;
+  }
   for (const team of universe.season.teams) {
-    const slots = team.driverIds.map((driverId) => retained.has(driverId) ? driverId : undefined) as [string | undefined, string | undefined];
-    for (let seat = 0; seat < slots.length; seat += 1) {
-      if (!slots[seat]) {
-        const next = candidates.shift();
-        if (next) {
-          slots[seat] = next.id;
-          retained.add(next.id);
-          assignments.set(next.id, team.id);
-          signed += 1;
-        }
-      }
-    }
+    const slots = seats.get(team.id)!;
     if (!slots[0] || !slots[1]) throw new Error(`${team.name} could not fill both active seats for ${targetSeason}.`);
     team.driverIds = [slots[0], slots[1]];
   }
 
   for (const contract of universe.season.contracts) {
-    if (contract.endSeason < targetSeason) contract.status = "expired";
     const assignedTeam = assignments.get(contract.driverId);
-    if (assignedTeam && assignedTeam !== contract.teamId && contract.status === "active") contract.status = "terminated";
-    if (!assignedTeam && contract.status === "active") contract.status = "terminated";
+    if (contract.endSeason < targetSeason) contract.status = "expired";
+    if (assignedTeam && assignedTeam !== contract.teamId && (contract.status === "active" || contract.status === "agreed")) contract.status = "terminated";
+    if (!assignedTeam && (contract.status === "active" || contract.status === "agreed")) contract.status = "terminated";
   }
   for (const team of universe.season.teams) {
     team.driverIds.forEach((driverId, seat) => {
-      const existing = universe.season.contracts.find((contract) => contract.driverId === driverId && contract.teamId === team.id && contract.status === "active" && contract.endSeason >= targetSeason);
+      const existing = universe.season.contracts.find((contract) => contract.driverId === driverId && contract.teamId === team.id && (contract.status === "active" || contract.status === "agreed") && contract.endSeason >= targetSeason);
       if (existing) return;
       const driver = universe.season.drivers.find((candidate) => candidate.id === driverId)!;
       universe.season.contracts.push({
@@ -144,7 +257,7 @@ function resolveNextSeasonContracts(universe: Universe, targetSeason: number): {
       });
     });
   }
-  return { retained: assignments.size - signed, signed, released };
+  return { retained: retainedCount, renewed, signed, released, declined };
 }
 
 export function proposeOffseason(input: Universe): Universe {
@@ -241,7 +354,7 @@ export function approveOffseason(input: Universe): Universe {
   universe.season.rulesLocked = false;
   universe.season.offseasonProposal = undefined;
   universe.season.phase = "preseason";
-  universe.audit.push({ id: uid("audit"), action: "approve-offseason", summary: `Approved offseason package for ${proposal.targetSeason}; retained ${market.retained}, signed ${market.signed}, and released ${market.released} driver${market.released === 1 ? "" : "s"}. Team ratings were rebased around the prior championship order.`, at: new Date().toISOString() });
+  universe.audit.push({ id: uid("audit"), action: "approve-offseason", summary: `Approved offseason package for ${proposal.targetSeason}; retained ${market.retained}, renewed ${market.renewed}, signed ${market.signed}, and released ${market.released} driver${market.released === 1 ? "" : "s"}${market.declined ? ` (${market.declined} declined a renewal offer)` : ""}. Team ratings were rebased around the prior championship order.`, at: new Date().toISOString() });
   universe.updatedAt = new Date().toISOString();
   return universe;
 }

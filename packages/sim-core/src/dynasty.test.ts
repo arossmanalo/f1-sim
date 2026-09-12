@@ -142,4 +142,36 @@ describe("dynasty progression", () => {
     expect(declined.age).toBe(41);
     expect(declined.ratings.racePace).toBeLessThan(before);
   });
+
+  it("turns expired contracts into renewal offers instead of preserving stale seats", () => {
+    const preset = structuredClone(PRESET_2005);
+    preset.weekends = [preset.weekends[0]!];
+    let universe = createUniverse(preset, { mode: "dynasty", seed: 441 });
+    universe.season.phase = "season-complete";
+    const strongTeam = universe.season.teams[0]!;
+    const weakTeam = universe.season.teams.at(-1)!;
+    const strongDriverId = strongTeam.driverIds[0];
+    const weakDriverId = weakTeam.driverIds[1];
+    const strongContract = universe.season.contracts.find((contract) => contract.driverId === strongDriverId && contract.teamId === strongTeam.id)!;
+    const weakContract = universe.season.contracts.find((contract) => contract.driverId === weakDriverId && contract.teamId === weakTeam.id)!;
+    strongContract.endSeason = universe.season.year;
+    weakContract.endSeason = universe.season.year;
+    const weakDriver = universe.season.drivers.find((driver) => driver.id === weakDriverId)!;
+    weakDriver.potential = 0;
+    for (const field of Object.keys(weakDriver.ratings) as Array<keyof typeof weakDriver.ratings>) weakDriver.ratings[field] = 0;
+    universe.season.driverStandings = universe.season.drivers.map((driver) => ({ driverId: driver.id, points: driver.id === strongDriverId ? 300 : 0, wins: driver.id === strongDriverId ? 8 : 0, podiums: 0, poles: 0, finishes: {} }));
+    universe.season.teamStandings = universe.season.teams.map((team) => ({ teamId: team.id, points: team.id === strongTeam.id ? 400 : 0, wins: team.id === strongTeam.id ? 8 : 0 }));
+    universe = proposeOffseason(universe);
+    universe.season.offseasonProposal!.driverMoves = [];
+    universe = approveOffseason(universe);
+
+    expect(universe.season.contracts.find((contract) => contract.id === strongContract.id)?.status).toBe("expired");
+    expect(universe.season.contracts.find((contract) => contract.id === weakContract.id)?.status).toBe("expired");
+    const strongRenewal = universe.season.contracts.find((contract) => contract.driverId === strongDriverId && contract.startSeason === 2006 && contract.status === "active");
+    expect(strongRenewal?.teamId).toBe(strongTeam.id);
+    const weakReplacement = universe.season.contracts.find((contract) => contract.driverId === weakDriverId && contract.startSeason === 2006 && contract.status === "active");
+    expect(weakReplacement?.teamId).not.toBe(weakTeam.id);
+    expect(universe.season.teams.some((team) => team.driverIds.includes(weakDriverId))).toBe(false);
+    expect(universe.audit.at(-1)?.summary).toMatch(/declined a renewal offer/);
+  });
 });
