@@ -575,7 +575,7 @@ export function finalizeWeekend(input: Universe): Universe {
 }
 
 export function voidLastWeekend(input: Universe): Universe {
-  const universe = clone(input);
+  let universe = clone(input);
   if (universe.season.currentWeekend) throw new Error("Cannot void a result while another weekend is active.");
   const last = [...universe.season.completedWeekends].reverse().find((weekend) => !weekend.voided);
   if (!last) throw new Error("There is no finalized weekend to void.");
@@ -599,6 +599,7 @@ export function voidLastWeekend(input: Universe): Universe {
   );
   universe.season.driverStandings = rebuilt.drivers;
   universe.season.teamStandings = rebuilt.teams;
+  universe = recalculateSeasonPerformance(universe);
   universe.audit.push({ id: uid("audit"), action: "void-weekend", summary: `Voided ${last.weekend.name}; the original remains in history.`, at: new Date().toISOString() });
   return startWeekend(universe);
 }

@@ -453,7 +453,6 @@ export function developDriverCareer(driver: NormalizedDriver, context: CareerDev
     afterOverall = calculateCareerOverall(next, context.config);
   }
 
-  if (next.status === "f1") next.careerStats.seasons += 1;
   next.form = clampRating(50 + rng.between(-5, 5));
   next.morale = clampRating(next.morale + rng.between(-4, 4));
   next.pressure = clampRating(50 + rng.between(-7, 7));
