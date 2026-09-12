@@ -17,29 +17,64 @@ const categoryLabels: Record<RecordCategory, string> = {
   podiums: "Podium finishes",
 };
 
-// This reference board is immutable and never written back to a simulation save.
-const realityRows: RecordRow[] = [
+// This reference board is immutable and never written back to a simulation
+// save.  Values are the completed 2025-season baseline; an in-progress 2026
+// refresh belongs in the simulation source and can be added without changing
+// this historical reference set.
+export const realityRows: RecordRow[] = [
   { holder: "Lewis Hamilton", category: "wdc", value: 7, source: "reality" },
   { holder: "Michael Schumacher", category: "wdc", value: 7, source: "reality" },
   { holder: "Juan Manuel Fangio", category: "wdc", value: 5, source: "reality" },
   { holder: "Alain Prost", category: "wdc", value: 4, source: "reality" },
   { holder: "Sebastian Vettel", category: "wdc", value: 4, source: "reality" },
+  { holder: "Max Verstappen", category: "wdc", value: 4, source: "reality" },
+  { holder: "Jack Brabham", category: "wdc", value: 3, source: "reality" },
+  { holder: "Jackie Stewart", category: "wdc", value: 3, source: "reality" },
+  { holder: "Niki Lauda", category: "wdc", value: 3, source: "reality" },
+  { holder: "Nelson Piquet", category: "wdc", value: 3, source: "reality" },
+  { holder: "Ayrton Senna", category: "wdc", value: 3, source: "reality" },
   { holder: "Ferrari", category: "wcc", value: 16, source: "reality" },
   { holder: "McLaren", category: "wcc", value: 10, source: "reality" },
   { holder: "Williams", category: "wcc", value: 9, source: "reality" },
   { holder: "Mercedes", category: "wcc", value: 8, source: "reality" },
+  { holder: "Lotus", category: "wcc", value: 7, source: "reality" },
+  { holder: "Red Bull Racing", category: "wcc", value: 6, source: "reality" },
+  { holder: "Brabham", category: "wcc", value: 2, source: "reality" },
+  { holder: "Cooper", category: "wcc", value: 2, source: "reality" },
+  { holder: "Renault", category: "wcc", value: 2, source: "reality" },
+  { holder: "Benetton", category: "wcc", value: 1, source: "reality" },
   { holder: "Lewis Hamilton", category: "wins", value: 105, source: "reality" },
   { holder: "Michael Schumacher", category: "wins", value: 91, source: "reality" },
+  { holder: "Max Verstappen", category: "wins", value: 71, source: "reality" },
   { holder: "Sebastian Vettel", category: "wins", value: 53, source: "reality" },
   { holder: "Alain Prost", category: "wins", value: 51, source: "reality" },
+  { holder: "Ayrton Senna", category: "wins", value: 41, source: "reality" },
+  { holder: "Fernando Alonso", category: "wins", value: 32, source: "reality" },
+  { holder: "Nigel Mansell", category: "wins", value: 31, source: "reality" },
+  { holder: "Jackie Stewart", category: "wins", value: 27, source: "reality" },
+  { holder: "Jim Clark", category: "wins", value: 25, source: "reality" },
   { holder: "Lewis Hamilton", category: "poles", value: 104, source: "reality" },
   { holder: "Michael Schumacher", category: "poles", value: 68, source: "reality" },
   { holder: "Ayrton Senna", category: "poles", value: 65, source: "reality" },
   { holder: "Sebastian Vettel", category: "poles", value: 57, source: "reality" },
-  { holder: "Lewis Hamilton", category: "podiums", value: 202, source: "reality" },
+  { holder: "Max Verstappen", category: "poles", value: 48, source: "reality" },
+  { holder: "Jim Clark", category: "poles", value: 33, source: "reality" },
+  { holder: "Alain Prost", category: "poles", value: 33, source: "reality" },
+  { holder: "Nigel Mansell", category: "poles", value: 32, source: "reality" },
+  { holder: "Juan Manuel Fangio", category: "poles", value: 29, source: "reality" },
+  { holder: "Mika Hakkinen", category: "poles", value: 26, source: "reality" },
+  { holder: "Lewis Hamilton", category: "podiums", value: 203, source: "reality" },
   { holder: "Michael Schumacher", category: "podiums", value: 155, source: "reality" },
-  { holder: "Sebastian Vettel", category: "podiums", value: 140, source: "reality" },
+  { holder: "Max Verstappen", category: "podiums", value: 127, source: "reality" },
+  { holder: "Sebastian Vettel", category: "podiums", value: 122, source: "reality" },
+  { holder: "Fernando Alonso", category: "podiums", value: 106, source: "reality" },
   { holder: "Alain Prost", category: "podiums", value: 106, source: "reality" },
+  { holder: "Kimi Raikkonen", category: "podiums", value: 103, source: "reality" },
+  { holder: "Ayrton Senna", category: "podiums", value: 80, source: "reality" },
+  { holder: "Rubens Barrichello", category: "podiums", value: 68, source: "reality" },
+  { holder: "Juan Manuel Fangio", category: "podiums", value: 68, source: "reality" },
+  { holder: "Valtteri Bottas", category: "podiums", value: 67, source: "reality" },
+  { holder: "David Coulthard", category: "podiums", value: 62, source: "reality" },
 ];
 
 function simulationRows(universe: ReturnType<typeof useSimulator>["current"]): RecordRow[] {
@@ -99,7 +134,7 @@ function simulationRows(universe: ReturnType<typeof useSimulator>["current"]): R
   return rows;
 }
 
-function rankRows(rows: RecordRow[]): RecordRow[] {
+export function rankRows(rows: RecordRow[]): RecordRow[] {
   return (Object.keys(categoryLabels) as RecordCategory[]).flatMap((category) => {
     const categoryRows = rows.filter((row) => row.category === category).sort((a, b) => b.value - a.value || a.holder.localeCompare(b.holder));
     return categoryRows.slice(0, 10).map((row, index) => ({ ...row, rank: index + 1 }));
@@ -112,14 +147,14 @@ function canonicalHolder(holder: string, category: RecordCategory): string {
   return normalized || holder;
 }
 
-function mergeAllHistory(rows: RecordRow[]): RecordRow[] {
+export function mergeAllHistory(rows: RecordRow[]): RecordRow[] {
   const merged = new Map<string, RecordRow>();
   for (const row of rows) {
     const holder = canonicalHolder(row.holder, row.category);
     const key = `${row.category}:${holder.toLocaleLowerCase()}`;
     const existing = merged.get(key);
-    if (!existing || row.value > existing.value) merged.set(key, { ...row, holder, source: "combined" });
-    else if (row.value === existing.value) merged.set(key, { ...existing, holder, source: "combined" });
+    if (!existing) merged.set(key, { ...row, holder, source: "combined" });
+    else merged.set(key, { ...existing, holder, value: existing.value + row.value, source: "combined" });
   }
   return [...merged.values()];
 }
