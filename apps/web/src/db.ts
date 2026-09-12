@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import { normalizeUniverse, type SourceSnapshot, type Universe } from "@f1-sim/core";
+import { normalizeUniverse, type NormalizedUniverse, type SourceSnapshot, type Universe } from "@f1-sim/core";
 
 export interface StoredSnapshot extends SourceSnapshot {
   payload?: unknown;
@@ -47,9 +47,38 @@ export async function loadUniverses(): Promise<Universe[]> {
 }
 
 export async function saveUniverse(universe: Universe): Promise<void> {
-  const normalized = normalizeUniverse(universe);
+  // Engine commands already return a normalized v2 universe. Re-cloning and
+  // re-normalizing that entire object for every autosave made long simulations
+  // progressively slower as season history and audit entries accumulated.
+  // Keep the migration safety net for legacy or malformed records, but take a
+  // zero-copy path for canonical in-memory state. Dexie performs its own clone
+  // when writing to IndexedDB.
+  const normalized = isNormalizedForPersistence(universe) ? universe : normalizeUniverse(universe);
   await db.universes.put(normalized);
   await db.settings.put({ key: "lastUniverseId", value: normalized.id });
+}
+
+function isNormalizedForPersistence(universe: Universe): universe is NormalizedUniverse {
+  if (universe.schemaVersion !== 2 || !universe.worldConfig || !universe.juniorState
+    || !Array.isArray(universe.aiDecisions) || !Array.isArray(universe.managementEvents)
+    || !Array.isArray(universe.seasonHistory)) return false;
+  const driversReady = universe.season.drivers.every((driver) => Boolean(
+    driver.advancedRatings && driver.personality && driver.careerStats && driver.status
+      && driver.careerPhase && driver.archetype && driver.countryCode
+      && driver.potentialMin !== undefined && driver.potentialMax !== undefined
+      && driver.developmentRate !== undefined && driver.generatedDriver !== undefined
+      && driver.reputation !== undefined && driver.financialBackingCredits !== undefined
+      && driver.sponsorshipValue !== undefined,
+  ));
+  const teamsReady = universe.season.teams.every((team) => Boolean(
+    team.careerStats && team.reputation !== undefined && team.budgetCredits !== undefined
+      && team.driverBudgetCredits !== undefined && team.developmentQuality !== undefined
+      && team.academyQuality !== undefined && team.facilities !== undefined
+      && team.scoutingQuality !== undefined && team.philosophy && team.strategyState
+      && team.riskTolerance !== undefined && team.prestige !== undefined
+      && team.championshipExpectations !== undefined,
+  ));
+  return driversReady && teamsReady;
 }
 
 export async function deleteUniverse(id: string): Promise<void> {

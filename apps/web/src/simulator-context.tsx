@@ -152,6 +152,10 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     if (message) setNotice({ tone: "success", text: message });
   }, []);
 
+  const persistOnly = useCallback(async (universe: Universe) => {
+    await saveUniverse(universe);
+  }, []);
+
   const run = useCallback(async (operation: (universe: Universe) => Universe, message?: string) => {
     if (!current) return;
     try {
@@ -176,8 +180,18 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
           if (universe.season.currentWeekend?.race.status === "running") universe = finishSession(universe);
           await yieldToBrowser();
           universe = finalizeWeekend(universe);
-          await commit(universe);
-          setNotice({ tone: "info", text: `${universe.season.year}: completed ${universe.season.currentRoundIndex} of ${universe.season.weekends.length} weekends${seasonCount > 1 ? ` · autonomous season ${seasonIndex + 1} of ${seasonCount}` : ""}.` });
+          // Persist every weekend for crash recovery, but only publish the
+          // complete universe to React periodically. Re-rendering the timing
+          // wall with the entire audit/event history 24 times per season was
+          // the main source of visible stutter during fast-forwarding.
+          const refreshUi = universe.season.phase === "season-complete"
+            || universe.season.currentRoundIndex % 4 === 0;
+          if (refreshUi) {
+            await commit(universe);
+            setNotice({ tone: "info", text: `${universe.season.year}: completed ${universe.season.currentRoundIndex} of ${universe.season.weekends.length} weekends${seasonCount > 1 ? ` · autonomous season ${seasonIndex + 1} of ${seasonCount}` : ""}.` });
+          } else {
+            await persistOnly(universe);
+          }
           await yieldToBrowser();
         }
         if (seasonCount > 1) {
@@ -193,7 +207,7 @@ export function SimulatorProvider({ children }: { children: ReactNode }) {
     } finally {
       setSimulationRunning(false);
     }
-  }, [commit, current, runAutonomousSeasons, simulationRunning]);
+  }, [commit, current, persistOnly, runAutonomousSeasons, simulationRunning]);
 
   const confirm = useCallback((prompt: ConfirmationPrompt) => new Promise<boolean>((resolve) => {
     setConfirmation((previous) => {

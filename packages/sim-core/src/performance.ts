@@ -80,6 +80,35 @@ function machineryRank(universe: Universe, teamId: string): number {
   return Math.max(1, order.findIndex((team) => team.id === teamId) + 1);
 }
 
+/**
+ * Values that are invariant while a season review is being built.  The old
+ * implementation rebuilt these sorted lists for every driver at every round,
+ * which made the end-of-weekend recalculation grow quadratically with the
+ * number of completed races.
+ */
+interface PerformanceContext {
+  machineryByTeamId: Map<string, number>;
+  machineryRankByTeamId: Map<string, number>;
+  driverExpectedPositionById: Map<string, number>;
+}
+
+function buildPerformanceContext(universe: Universe): PerformanceContext {
+  const machineryByTeamId = new Map(universe.season.teams.map((team) => [team.id, carRating(universe, team.id)]));
+  const machineryRankByTeamId = new Map(
+    [...universe.season.teams]
+      .sort((a, b) => (machineryByTeamId.get(b.id) ?? 50) - (machineryByTeamId.get(a.id) ?? 50) || a.id.localeCompare(b.id))
+      .map((team, index) => [team.id, index + 1]),
+  );
+  const activeDriverIds = new Set(universe.season.teams.flatMap((team) => team.driverIds));
+  const driverExpectedPositionById = new Map(
+    universe.season.drivers
+      .filter((driver) => activeDriverIds.has(driver.id))
+      .sort((a, b) => driverAbility(universe, b.id) - driverAbility(universe, a.id) || a.id.localeCompare(b.id))
+      .map((driver, index) => [driver.id, index + 1]),
+  );
+  return { machineryByTeamId, machineryRankByTeamId, driverExpectedPositionById };
+}
+
 function attribution(result: { status: CarState["status"]; reason?: string }): "none" | "mechanical" | "driver" | "other" {
   if (result.status === "finished" || result.status === "nc") return "none";
   const reason = (result.reason ?? "").toLowerCase();
@@ -105,16 +134,12 @@ function expectedResult(
   fieldSize: number,
   config: PerformanceEvaluationConfig,
   gridPosition?: number,
+  context?: PerformanceContext,
 ): { expectedPosition: number; machineryExpectedPosition: number; machinery: number; rank: number } {
-  const rank = machineryRank(universe, teamId);
-  const machinery = carRating(universe, teamId);
+  const rank = context?.machineryRankByTeamId.get(teamId) ?? machineryRank(universe, teamId);
+  const machinery = context?.machineryByTeamId.get(teamId) ?? carRating(universe, teamId);
   const machineryExpectedPosition = rank * 2 - 0.5;
-  const activeDriverIds = new Set(universe.season.teams.flatMap((team) => team.driverIds));
-  const abilityOrder = universe.season.drivers
-    .filter((driver) => activeDriverIds.has(driver.id))
-    .sort((a, b) => driverAbility(universe, b.id) - driverAbility(universe, a.id) || a.id.localeCompare(b.id));
-  const driverIndex = abilityOrder.findIndex((driver) => driver.id === driverId);
-  const driverExpectedPosition = driverIndex >= 0 ? driverIndex + 1 : fieldSize / 2 + 0.5;
+  const driverExpectedPosition = context?.driverExpectedPositionById.get(driverId) ?? fieldSize / 2 + 0.5;
   const expectedPosition = clamp(weightedAverage([
     { value: machineryExpectedPosition, weight: config.machineryExpectationWeight },
     { value: driverExpectedPosition, weight: config.driverExpectationWeight },
@@ -131,8 +156,9 @@ function relativeScore(
   fieldSize: number,
   config: PerformanceEvaluationConfig,
   gridPosition?: number,
+  context?: PerformanceContext,
 ): RelativeToMachineryScore {
-  const expected = expectedResult(universe, driverId, teamId, fieldSize, config, gridPosition);
+  const expected = expectedResult(universe, driverId, teamId, fieldSize, config, gridPosition, context);
   const exclusionReason = exclusion(result.status, result.reason, "race");
   if (exclusionReason) {
     return { machineryRank: expected.rank, machineryRating: expected.machinery, machineryExpectedPosition: expected.machineryExpectedPosition, expectedPosition: expected.expectedPosition, actualPosition: result.position, score: 50, eligible: false, exclusionReason };
@@ -227,28 +253,54 @@ function addH2H(record: HeadToHeadRecord, outcome: "win" | "loss" | "tie" | unde
   else if (outcome === "tie") record.ties += 1;
 }
 
+interface DriverSampleTotals {
+  qualifyingSum: number;
+  qualifyingCount: number;
+  finishSum: number;
+  finishCount: number;
+  relativeSum: number;
+  relativeCount: number;
+  weekendSum: number;
+  weekendCount: number;
+}
+
+function emptyDriverSampleTotals(): DriverSampleTotals {
+  return { qualifyingSum: 0, qualifyingCount: 0, finishSum: 0, finishCount: 0, relativeSum: 0, relativeCount: 0, weekendSum: 0, weekendCount: 0 };
+}
+
 /** Build the season review used by confidence, renewals and storytelling. */
 export function evaluateSeasonPerformance(
   input: Universe,
   config: PerformanceEvaluationConfig = DEFAULT_PERFORMANCE_CONFIG,
 ): SeasonPerformance {
   const universe = normalizeUniverse(input);
+  return evaluateNormalizedSeasonPerformance(universe, config);
+}
+
+function evaluateNormalizedSeasonPerformance(
+  universe: NormalizedUniverse,
+  config: PerformanceEvaluationConfig,
+): SeasonPerformance {
   const baseline = config.baselineTeamConfidence;
   const priorPerformance = universe.season.performance?.season === universe.season.year ? universe.season.performance : undefined;
   const drivers: Record<string, DriverSeasonPerformance> = Object.fromEntries(
     universe.season.drivers.map((driver) => [driver.id, emptyDriverPerformance(driver.id, baseline)]),
   );
+  const totals = new Map<string, DriverSampleTotals>(universe.season.drivers.map((driver) => [driver.id, emptyDriverSampleTotals()]));
   const confidence = new Map<string, number>();
   const completed = universe.season.completedWeekends
     .filter((weekend) => !weekend.voided)
     .sort((a, b) => a.weekend.round - b.weekend.round || a.weekend.id.localeCompare(b.weekend.id));
   const fieldSize = Math.max(2, universe.season.teams.length * 2);
+  const context = buildPerformanceContext(universe);
 
   for (const weekend of completed) {
     for (const result of weekend.race) {
       const review = drivers[result.driverId] ?? (drivers[result.driverId] = emptyDriverPerformance(result.driverId, baseline));
+      const sampleTotals = totals.get(result.driverId) ?? emptyDriverSampleTotals();
+      totals.set(result.driverId, sampleTotals);
       const qualifying = qualifyingEntryForDriver(weekend, result.driverId);
-      const relative = relativeScore(universe, result, result.driverId, result.teamId, fieldSize, config, qualifying?.position);
+      const relative = relativeScore(universe, result, result.driverId, result.teamId, fieldSize, config, qualifying?.position, context);
       const teammate = compareTeammates(weekend, result, qualifying, config);
       const raceValid = result.status === "finished" || result.status === "nc";
       const attributionType = attribution(result);
@@ -258,20 +310,21 @@ export function evaluateSeasonPerformance(
       if (attributionType === "driver") review.driverIncidents += 1;
       review.points += result.points;
       if (qualifying?.position !== undefined) {
-        const prior = review.weekends.map((entry) => entry.qualifyingPosition).filter((position): position is number => position !== undefined);
-        review.averageQualifyingPosition = average([...prior, qualifying.position], 0);
+        sampleTotals.qualifyingSum += qualifying.position;
+        sampleTotals.qualifyingCount += 1;
+        review.averageQualifyingPosition = sampleTotals.qualifyingSum / sampleTotals.qualifyingCount;
       }
       if (raceValid) {
-        const prior = review.weekends
-          .filter((entry) => (entry.raceStatus === "finished" || entry.raceStatus === "nc") && entry.racePosition !== undefined)
-          .map((entry) => entry.racePosition as number);
-        review.averageFinishingPosition = average([...prior, result.position], 0);
+        sampleTotals.finishSum += result.position;
+        sampleTotals.finishCount += 1;
+        review.averageFinishingPosition = sampleTotals.finishSum / sampleTotals.finishCount;
       }
       if (relative.eligible) {
-        const oldCount = review.weekends.filter((entry) => entry.relativeToMachinery.eligible).length;
-        review.averageRelativeToMachinery = (review.averageRelativeToMachinery * oldCount + relative.score) / (oldCount + 1);
+        sampleTotals.relativeSum += relative.score;
+        sampleTotals.relativeCount += 1;
+        review.averageRelativeToMachinery = sampleTotals.relativeSum / sampleTotals.relativeCount;
       }
-      const qualifyingScore = qualifying ? clamp(50 + (expectedResult(universe, result.driverId, result.teamId, fieldSize, config).expectedPosition - qualifying.position) * config.qualifyingPositionScale) : 50;
+      const qualifyingScore = qualifying ? clamp(50 + (expectedResult(universe, result.driverId, result.teamId, fieldSize, config, undefined, context).expectedPosition - qualifying.position) * config.qualifyingPositionScale) : 50;
       const teammateScore = teammate.eligible ? teammate.score : 50;
       let weekendScore = relative.score * config.raceWeight + qualifyingScore * config.qualifyingWeight + teammateScore * config.teammateWeight;
       if (attributionType === "driver") weekendScore -= config.driverIncidentPenalty;
@@ -284,7 +337,9 @@ export function evaluateSeasonPerformance(
       const nextConfidence = clamp(previousConfidence + confidenceDelta);
       confidence.set(confidenceKey, nextConfidence);
       review.teamConfidenceByTeamId[result.teamId] = nextConfidence;
-      review.averageWeekendScore = average([...review.weekends.map((entry) => entry.weekendScore), weekendScore], baseline);
+      sampleTotals.weekendSum += weekendScore;
+      sampleTotals.weekendCount += 1;
+      review.averageWeekendScore = sampleTotals.weekendSum / sampleTotals.weekendCount;
       review.weekends.push({
         weekendId: weekend.weekend.id,
         round: weekend.weekend.round,
@@ -325,9 +380,11 @@ export function evaluateSeasonPerformance(
 }
 
 /** Persist the review and expose capped form/confidence to the next race. */
-export function recalculateSeasonPerformance(input: Universe, config: PerformanceEvaluationConfig = DEFAULT_PERFORMANCE_CONFIG): NormalizedUniverse {
-  const universe = normalizeUniverse(input);
-  universe.season.performance = evaluateSeasonPerformance(universe, config);
+export function recalculateSeasonPerformanceInPlace(
+  universe: NormalizedUniverse,
+  config: PerformanceEvaluationConfig = DEFAULT_PERFORMANCE_CONFIG,
+): NormalizedUniverse {
+  universe.season.performance = evaluateNormalizedSeasonPerformance(universe, config);
   for (const driver of universe.season.drivers) {
     const review = universe.season.performance.drivers[driver.id];
     if (!review) continue;
@@ -341,4 +398,9 @@ export function recalculateSeasonPerformance(input: Universe, config: Performanc
     }
   }
   return universe;
+}
+
+/** Normalize a public input and then persist its performance review. */
+export function recalculateSeasonPerformance(input: Universe, config: PerformanceEvaluationConfig = DEFAULT_PERFORMANCE_CONFIG): NormalizedUniverse {
+  return recalculateSeasonPerformanceInPlace(normalizeUniverse(input), config);
 }

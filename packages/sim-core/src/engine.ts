@@ -18,11 +18,12 @@ import type {
   UniverseMode,
   Weather,
   WeekendState,
+  NormalizedUniverse,
 } from "./types";
 import { validatePreset } from "./validation";
 import { applyInSeasonDevelopment } from "./progression";
 import { normalizeUniverse } from "./migrations";
-import { recalculateSeasonPerformance } from "./performance";
+import { recalculateSeasonPerformance, recalculateSeasonPerformanceInPlace } from "./performance";
 
 const DEFAULT_RANDOMNESS: RandomnessSettings = {
   preset: "realistic",
@@ -478,11 +479,11 @@ export function advanceLaps(input: Universe, count = 1): Universe {
 }
 
 export function finishSession(input: Universe): Universe {
-  let universe = clone(input);
-  const remaining = universe.season.currentWeekend?.race.totalLaps ?? 0;
-  if (!universe.season.currentWeekend) throw new Error("No weekend is active.");
-  universe = advanceLaps(universe, Math.max(0, remaining - universe.season.currentWeekend.race.lap));
-  return universe;
+  const remaining = input.season.currentWeekend?.race.totalLaps ?? 0;
+  if (!input.season.currentWeekend) throw new Error("No weekend is active.");
+  // advanceLaps already clones its input. Avoid the extra full-universe clone
+  // that previously doubled the cost of every finish-session action.
+  return advanceLaps(input, Math.max(0, remaining - input.season.currentWeekend.race.lap));
 }
 
 export function applyIntervention(
@@ -568,7 +569,9 @@ export function finalizeWeekend(input: Universe): Universe {
   );
   universe.season.driverStandings = rebuilt.drivers;
   universe.season.teamStandings = rebuilt.teams;
-  universe = recalculateSeasonPerformance(universe);
+  universe = universe.schemaVersion === 2
+    ? recalculateSeasonPerformanceInPlace(universe as NormalizedUniverse)
+    : recalculateSeasonPerformance(universe);
   universe.audit.push({ id: uid("audit"), action: "finalize-weekend", summary: `Finalized ${current.weekend.name}.`, at: new Date().toISOString() });
   universe.updatedAt = new Date().toISOString();
   return universe;
@@ -599,7 +602,9 @@ export function voidLastWeekend(input: Universe): Universe {
   );
   universe.season.driverStandings = rebuilt.drivers;
   universe.season.teamStandings = rebuilt.teams;
-  universe = recalculateSeasonPerformance(universe);
+  universe = universe.schemaVersion === 2
+    ? recalculateSeasonPerformanceInPlace(universe as NormalizedUniverse)
+    : recalculateSeasonPerformance(universe);
   universe.audit.push({ id: uid("audit"), action: "void-weekend", summary: `Voided ${last.weekend.name}; the original remains in history.`, at: new Date().toISOString() });
   return startWeekend(universe);
 }
